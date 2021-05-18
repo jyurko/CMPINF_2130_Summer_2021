@@ -1,0 +1,109 @@
+# a comment in R
+
+### a comment in R
+
+### when I'm inside functions then I use #
+
+### there are two ways to assign objects in R
+x = 2
+
+x.1 <- 2
+
+x_1 <- 2
+
+### R is case sensititive
+X <- 3
+
+x == X
+
+### R has character strings
+x_string <- "yes"
+
+var_string <- 'no'
+
+long_string <- "Here is a short sentence."
+
+print( long_string )
+
+long_string
+
+### R has booleans
+x_bool <- TRUE
+
+x_false_bool <- FALSE
+
+### check the data type in R with the class()
+
+class(x)
+
+class(x_string)
+
+class(x_bool)
+
+### the length() function in R tells us the "length" or size of an object
+length(long_string)
+
+long_string[1]
+
+nchar(long_string)
+
+substr(long_string, 1, 1)
+
+substr(long_string, 1, 4)
+
+### R is ONE indexed based
+
+### R actually views the objects we made as vectors with 1 element (length 1)
+
+### R makes vectors with the c() -- concatenate or combine
+char_vec <- c("yes", 'no', 'maybe', "short phase")
+
+length(char_vec)
+
+char_vec[1]
+
+char_vec[4]
+
+nchar( char_vec[1] )
+
+nchar( char_vec[4] )
+
+### a vector can handle one data type and one data type only!!!!!!
+another_vector <- c(1, 'two', 3.0, 'the number four')
+
+another_vector
+
+class(another_vector)
+
+### iterate with for-loops
+for(a_char in char_vec){ print(a_char) }
+
+for(a_char in char_vec){ print( nchar(a_char) ) }
+
+### we can use multiple lines if we wish
+for(a_char in char_vec){
+  print( nchar(a_char) )
+}
+
+for(a_char in char_vec)
+{
+  # this is the body of the for loop
+  print( nchar(a_char) )
+}
+
+### R does not have comprehensions
+sapply(char_vec, nchar) # the base R way...
+
+purrr::map_dbl( char_vec, ~nchar(.) )
+
+### the elements within vectors can be named
+(x_vec <- c(1, 2, 3, 4))
+(x_vec_b <- 1:4)
+
+names(x_vec) <- c('a', 'b', 'c', 'd')
+
+x_vec
+
+names(x_vec)
+
+class(x_vec)
