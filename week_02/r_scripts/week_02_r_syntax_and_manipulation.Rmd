@@ -1,0 +1,284 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 02"
+subtitle: "R Syntax and data manipulation"
+author: "Dr. Joseph P. Yurko"
+date: "5/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Vector review
+
+Let's create a simple vector with values from 1 to 11.  
+
+```{r, vector_example_1}
+x_vec <- 1:11
+```
+
+Multiply two vectors together. We created one of them but the second has not been made. If this code chunk is executed things break.  
+
+```{r, eval=FALSE}
+x.vec * x_vec
+```
+
+Display the object to the screen.  
+
+We need two spaces after a line to tell Markdown to create a new "paragraph".  
+
+```{r, vector_example_2}
+x_vec
+```
+
+Make another vector.  
+
+```{r, vector_example_3}
+x.vec <- 1:11
+```
+
+We can subset a vector by applying a conditional test.  
+
+```{r, vector_example_4}
+x_vec > 5
+```
+
+We can pass in the boolean vector to SUBSET a vector.  
+
+```{r, vector_example_5}
+x_vec[ x_vec > 5 ]
+```
+
+If we wanted to subset by position or index, we can pass in the integer index value.  
+
+```{r, vector_example_6}
+x_vec[ 1 ]
+```
+
+```{r, vector_example_7}
+x_vec[ 1:4 ]
+```
+
+We can also apply equality conditions.  
+
+```{r, vector_example_8}
+x_vec == 5
+```
+
+```{r, vector_example_9}
+x_vec[ x_vec == 5 ]
+```
+
+We can also have an **OR** statement. For example, lets use does the element equal 2, 3, or 7.  
+
+```{r, vector_example_10}
+x_vec[ x_vec %in% c(2, 3, 7) ]
+```
+
+We can have the **NOT IN** operation.  
+
+```{r, vector_example_11}
+x_vec[ !x_vec %in% c(2, 3, 7) ]
+```
+
+R vectors homogeneous. They can only store a single data type.  
+
+## Lists
+
+It is a data container. It's a blend of the Python list and a dictionary.  
+
+```{r, list_example_1}
+my_list <- list(a = 1:5,
+                b = as.character(1:3),
+                c = letters[1:7],
+                d = c(TRUE, FALSE, TRUE, FALSE))
+```
+
+```{r, list_example_2}
+my_list
+```
+
+We can use the `$` operator to access the fields in a list.  
+
+```{r, list_example_3}
+my_list$a
+
+my_list$d
+```
+
+We can also access the elements or fields of a list with double bracket notation.  
+
+```{r, list_example_4}
+my_list[[1]]
+```
+
+```{r, list_example_5}
+my_list[[4]]
+```
+
+We can use character strings with the double bracket notation.  
+
+```{r, list_example_6}
+my_list[['a']]
+
+my_list[['d']]
+```
+
+Use a for loop to iterate over the elements of the list and print the length of each field (object in a list) to the screen.  
+
+```{r, list_example_7}
+for(n in (1:length(my_list)) )
+{
+  print( length( my_list[[n]] ) )
+}
+```
+
+Instead I prefer the `seq_along()` function to create a vector to iterate over.  
+
+```{r, list_example_8}
+seq_along(my_list)
+```
+
+```{r, list_examplee_9}
+for(n in seq_along(my_list) )
+{
+  print( length( my_list[[n]] ) )
+}
+```
+
+We can also iterate over the element or field names of the list.  
+
+```{r, list_example_10}
+names( my_list )
+```
+
+```{r, list_example_11}
+for(a_name in names(my_list) )
+{
+  print( length( my_list[[a_name]] ) )
+}
+```
+
+## Data frames
+
+A `data.frame` is a specialized list. Each list contained in a `data.frame` must store the same data type, but different lists can store different data types. Every list in a `data.frame` MUST have the same length.  
+
+```{r, df_example_1}
+my_df <- data.frame(x1 = 1:4, 
+                    x2 = c('yes', 'no', 'maybe', 'hello'), 
+                    x3 = seq(-1, 1, length.out = 4), 
+                    x4 = c(TRUE, FALSE, FALSE, TRUE))
+```
+
+```{r, df_example_2}
+my_df
+```
+
+Because a `data.frame` is just a specialized list, we can access columns with the `$` operator.  
+
+```{r, df_example_3}
+my_df$x2
+```
+
+When we use the `$` operator to access or *select* a column from the `data.frame` it returns a regular vector.  
+
+```{r, df_example_4}
+class( my_df$x2 )
+```
+
+We can also use the column index to select a column.  
+
+```{r, df_example_5}
+my_df[1, 1]
+```
+
+```{r, df_example_6}
+my_df[ , 1]
+```
+
+To prevent a `data.frame` from dropping down to a vector we must use the `drop = FALSE` argument.  
+
+```{r, df_example_7}
+my_df[, 1, drop=FALSE]
+```
+
+Select columns with character strings for the names.  
+
+```{r, df_example_8}
+my_df[, "x1", drop=FALSE]
+```
+
+We can also select multiple columns.  
+
+```{r, df_example_9}
+my_df[, c("x1", "x2"), drop=FALSE]
+```
+
+## Tidyverse
+
+Load the tidyverse.  
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+The RStudio cheat sheets are good resource for the tidyverse family of packages.  
+
+[RStudio Cheat sheet link](https://www.rstudio.com/resources/cheatsheets/)  
+
+We will manipulate the `data.frame` with the `dplyr` package.  
+
+```{r, dplyr_example_1}
+select(my_df, x1)
+```
+
+Select two columns.  
+
+```{r, dplyr_example_2}
+select(my_df, x1, x2)
+```
+
+`filter()` is for the applying conditional subsets for rows.  
+
+```{r, dplyr_example_3}
+filter(my_df, x3 > 0)
+```
+
+The `dplyr` package also loads in the `%>%` forward-pipe operator from the `magrittr` package.  
+
+```{r, pipe_example_1}
+my_df %>% select(x1, x2)
+```
+
+We can string or chain together data manipulation steps into a pipeline.  
+
+```{r, pipe_example_2}
+my_df %>% 
+  filter(x3 > 0) %>% 
+  select(x1, x2)
+```
+
+```{r, pipe_example_3}
+select( filter( my_df, x3 > 0), x1, x2 )
+```
+
+Add a column we use `mutate()`.  
+
+```{r, pipe_example_4}
+my_df %>% 
+  mutate(x5 = x1 * x3)
+```
+
+
+```{r}
+my_df
+```
+
+```{r}
+my_df %>% 
+  mutate(x5 = x1 * x3) %>% 
+  filter(abs(x5) > 1) %>% 
+  select(-x5)
+```
+

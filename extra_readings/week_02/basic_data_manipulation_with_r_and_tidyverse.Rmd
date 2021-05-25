@@ -1,0 +1,807 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 02"
+subtitle: "R Syntax and Data manipulation"
+author: "Dr. Joseph P. Yurko"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This report discusses manipulating several different data types. We start out working with base `R` with vectors, lists, and the `data.frame`. We then introduce the `tidyverse`, specifically the `dplyr` package for manipulating `data.frame` and `tibble` objects. When using the `tidyverse`, the forward pipe-operator is used to create *pipelines* or *workflows* of chained data manipulation operations.  
+
+## Vectors in more detail
+
+We discussed the "regular" `R` vector data type in the first week of lecture. We contrasted the `R` vector with the Python list so we could relate `R` object to a data type we worked with a lot in CMPINF 2100. Let's dive into vectors in more detail, before we introduce various ways to subset vectors.  
+
+### Vector creation
+
+The `c()` function allows us to combine or *concatenate* values together into a vector. For example, we can combine the integers 1 through 11 into a vector in the following way:  
+
+```{r, vector_example_a}
+vector_from_c <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+```
+
+The `vector_from_c` object is displayed below giving the eleven values we typed in the above code chunk.  
+
+```{r, vector_example_b}
+vector_from_c
+```
+
+Since this is rather tedious there are multiple "shortcut" operations and functions we can use to create a vector of *sequential* integer values. One such approach is to use the `:` operator which will by default increment from a starting value to a final value (inclusive) in increments of 1. The basic syntax is:  
+
+`<start value>:<final value>`  
+
+A sequential integer vector of values from 1 to 11 can therefore be created by simplying typing `1:11`. The code chunk below assigns the vector to the `x_vec` variable. Parantheses are wrapped around the assignment statement to print the resulting object to the screen. This saves us from having to manually call the `print()` function or retype the object's variable name. The `( )` command line operation is useful when we want to display a relatively small object immediately after we create it.  
+
+```{r, vector_example_c}
+( x_vec <- 1:11 )
+```
+
+The two previous code chunk outputs show the `vector_from_c` and `x_vec` objects contain the same values. However, let's programmatically confirm that is indeed the case. We will first use the `==` operator which checks that **each pair of elements** across the two vectors are equal to each other.  
+
+```{r, vector_example_d}
+x_vec == vector_from_c
+```
+
+The above code output reveals that `R` likes to work "element-wise". It thinks in terms of operating over the elements of a vector. We could then summarize the resulting boolean vector to determine if all elements in the vector are equal to each other. However, we have not discussed grouping and summarizing operations in `R` yet. Thus, we will use the `all.equal()` function to determine if all pairs of elements in the vectors are equal to each other not. The `all.equal()` function will return a `TRUE` if that is the case. If there are differences, some representative statement about the differences will be given. As we can see in the output below, the two vectors are equal to each other. We will use `all.equal()` throughout the semester as we learn about more advanced data types since it can be used for other objects besides vectors.  
+
+```{r, vector_example_e}
+all.equal(vector_from_c, x_vec)
+```
+
+There are still other ways to create vectors of sequential numbers. The `:` operator is useful, but perhaps we need even more control over the *stride* or increment between values. Additionally, maybe we even want to allow for non-integer decimal values if need be. For these situations we can use the `seq()` function to create a vector of sequential *numeric* values between a `from` (starting value and first function argument) and a `to` (final value and second function argument). The `seq()` function is quite versatile with multiple third arguments which control how the sequence is created. For example, we can specify the length of the vector with the `length.out` argument. Using this argument create an evenly spaced points between the start and end point (inclusive).  
+
+```{r, vector_example_f}
+seq(from = 1, to = 11, length.out = 11)
+```
+
+Alternatively, we can use the `by` argument to specify the increment between evenly spaced. Since the first two arguments are `from` and `to`, respectively, I usually ommit those argument names when I call `seq()`. I always name the third argument so it is clear how the vector is being created. Let's make the vector again but this time with the `by` argument and assign the result to the `x_seq` object.  
+
+```{r, vector_example_g}
+( x_seq <- seq(1, 11, by = 1) )
+```
+
+Let's confirm that `x_seq` is equal to the `x_vec` object.  
+
+```{r, vector_example_h}
+all.equal(x_vec, x_seq)
+```
+
+Lastly, if the `by` argument does not allow an evenly spaced set of points between the `from` and `to` arguments, the last value in the vector is less than the `to` value. For example, the code chunk below specifies `by = 3` with `from = 1` and `to = 11`. As we can see with the result, each value is an increment of 3 from its previous value. The last element in the vector is 10. The vector does not continue because 3 more than 10 is 13 which is greater than the `to` argument.  
+
+```{r, vector_example_i}
+seq(1, 11, by = 3)
+```
+
+### Indexing and slicing
+
+We can index an vector with square brackets, `[ ]`. For example, if we want the 2nd element in the `x_vec` vector:  
+
+```{r, index_example_a}
+x_vec[2]
+```
+
+Remember that `R` is one-based. The first element in the vector is indexed by 1 and **not** 0, as in Python.  
+
+```{r, index_example_b}
+x_vec[1]
+```
+
+We can also slice a vector by passing in another vector in the square brackets. The 2nd through 8th elements from `x_vec` are sliced with the `:` operator below.  
+
+```{r, slice_example_a}
+x_vec[2:8]
+```
+
+We could have performed the above operation by manually defining the slicing vector with the `c()` function as well.  
+
+```{r, slice_example_b}
+x_vec[c(2, 3, 4, 5, 6, 7, 8)]
+```
+
+The `:` operator is preferred when we are slicing sequential elements from a vector. However, the above example shows that we can use the `c()` function to create our own "custom" slices if need to be. For example, maybe we want just the 1st, 4th, and 10th elements:  
+
+```{r, slice_example_c}
+x_vec[c(1, 4, 10)]
+```
+
+We can also combine the `:` operator within a `c()` function call. For example, we can slice the 2nd through 5th elements and the 8th through 10th elements as follows:  
+
+```{r, slice_example_d}
+x_vec[c(2:5, 8:10)]
+```
+
+In this example the `2:5` and `8:10` vectors are combined together into a a single vector with the `c()` function. The `c()` function is therefore rather flexible. It does not just allow combining scalar values into a vector. It also allows combining multiple vectors into a larger vector.  
+
+The previous indexing and slices examples were "positive" in that we wanted to extract the elements whose indices we included with the square brackets. In `R` we can also slice "negatively" or *all except* the specified indices via the `-` operator. Thus, to slice all elements *except the first* element:  
+
+```{r, slice_example_e}
+x_vec[-1]
+```
+
+If we instead wanted all except the 11th:  
+
+```{r, slice_example_f}
+x_vec[-11]
+```
+
+Or, all except the 5th:  
+
+```{r, slice_example_g}
+x_vec[-5]
+```
+
+We can also apply this logic to vectors of indices. For example, we can slice all elements **except** the 1st, 3rd, and 5th elements as:  
+
+```{r, slice_example_h}
+x_vec[-c(1, 3, 5)]
+```
+
+The `-` operator is therefore different than the `-` operator in Python since Python interprets the negative to mean start the slice at the end.  
+
+### Conditional subset
+
+Indexing and slices are useful when we know the exact element positions we are interested in. However, more frequently we do not know the element positions up front. Instead we want to apply a *conditional test* and identify the elements that satisfy or meet the condition. We are therefore **conditionally subsetting** the vector. For example, let's find all elements in `x_vec` that have values greater than 5:  
+
+```{r, cond_test_a}
+x_vec > 5
+```
+
+Notice that a boolean vector is returned. The returned `FALSE` elements are elements in `x_vec` that **do not** satisfy the condition, while the returned `TRUE` values correspond to elements that satisfy the condition. Slicing a vector with the results from the conditional test will return the elements that satisfy the condition. In our present example the conditional subset returns values 6 through 11, as expected.  
+
+```{r, cond_test_b}
+x_vec[ x_vec > 5 ]
+```
+
+In Python terminology, the conditional test creates a *mask* that will hide or remove elements that do not satisfy the condition of interest. The code chunk below assigns the result of the conditional test to the vector `x_mask` and then uses `x_mask` as the slicing vector to `x_vec`. The displayed result is the same as what we saw previously.  
+
+```{r, cond_test_c}
+x_mask <- x_vec > 5
+
+x_vec[ x_mask ]
+```
+
+The code chunk below uses `all.equal()` to confirm that applying the "masking vector" is the same result as using the conditional test directly.  
+
+```{r, cond_test_d}
+all.equal(x_vec[ x_vec > 5 ], x_vec[x_mask])
+```
+
+We can perform different types of conditional tests. Besides `>` we can also use `<`, `>=`, `<=`, and `==`. For example, we can find the element in `x_vec` that exactly equals 5.  
+
+```{r, cond_test_e}
+x_vec[ x_vec == 5 ]
+```
+
+We can find elements equal to one of several options as well. Such a condition is an **OR** statement. The `R` syntax requires using the `%in%` operator where the phrase "in" is wrapped between two percent signs. This statement is analogous to the `numpy.isin()` function and the Pandas Series `.isin()` method.  
+
+The code chunk below shows how to find all elements in `x_vec` equal to 2, 3, OR 7.  
+
+```{r, cond_test_f}
+x_vec[ x_vec %in% c(2, 3, 7) ]
+```
+
+We can also use the `%in%` operator to find values **not in** a set. We must place a `!` character in front of the variable we are applying the conditional test to. This is a little odd at first, but example below shows the syntax for finding all elements in `x_vec` **not** equal to 2, 3, or 7.  
+
+```{r, cond_test_g}
+x_vec[ !x_vec %in% c(2, 3, 7) ]
+```
+
+The equalities, `==`, `%in%`, and "not in" operations can also be applied to character data type vectors. The code chunk below creates a vector of character strings.  
+
+```{r, char_vector_a}
+x_char <- c('dog', 'cat', 'fish', 'horse', 'mouse', 'dog', 'horse')
+```
+
+Let's find all elements in `x_char` with values equal to `'dog'`.  
+
+```{r, char_vector_b}
+x_char[ x_char == 'dog' ]
+```
+
+We could also have used the `%in%` operator even though we are finding just a single value.  
+
+```{r, char_vector_c}
+x_char[ x_char %in% 'dog' ]
+```
+
+We **cannot** use `==` when we want to find all elements **in** a set of values (an OR conditional test). For example if we want to find all elements in `x_char` equal to `'cat'` OR `'horse'` and we use the `==` operator, a warning message will be displayed!  
+
+```{r, char_vector_d}
+x_char[ x_char == c("cat", "horse") ]
+```
+
+We **must** use the `%in%` operator for the OR conditional test.  
+
+```{r, char_vector_e}
+x_char[ x_char %in% c("cat", "horse") ]
+```
+
+Finding all elements **not in** a set requires the `!` to be included, just as we saw previously. For example, we can find all elements in `x_char` NOT equal to `'cat'` OR `'horse'`:  
+
+```{r, char_vector_f}
+x_char[ !x_char %in% c("cat", "horse") ]
+```
+
+## Introduction to lists
+
+Vectors are useful but we must think carefully with what we want to store since a vector can only contain elements of the same data type. Vectors in `R` are homogeneous. If we mix data types within a vector we can get unexpected behavior.  
+
+That's where lists come in! Lists are a fundamental data type in `R`. Although they have the same name as the Python list, the `R` is more of a blend between the Python list and the Python dictionary. Elements or *fields* of a list can be named and the values of a list can be sequentially iterated over.  
+
+Let's make a list with 4 named elements. Each element will be a vector, but the fields will consist of different data types.  
+
+```{r, list_example_a}
+my_list <- list(a = 1:5,
+                b = as.character(1:3),
+                c = letters[1:7],
+                d = c(TRUE, FALSE, TRUE, FALSE))
+```
+
+Displaying the list to the screen shows a `$` next to each field.  
+
+```{r, list_example_b}
+my_list
+```
+
+The `$` shows us that we can access a field with the `$` operator.  
+
+```{r, list_example_c}
+my_list$a
+
+my_list$c
+```
+
+We can apply functions to elements in a list. If we access the elements with the `$` operator it's like we are working with that field's object and thus data type directly.  
+
+```{r, list_example_d}
+class( my_list$a )
+
+length( my_list$a )
+
+class(my_list$c)
+
+length(my_list$c)
+```
+
+We can also access the fields with indexes and the **double bracket notation**.  
+
+```{r, list_example_e}
+my_list[[1]]
+
+my_list[[3]]
+```
+
+Accessing fields within a list with `$` or indexes are analogous to each other. So we can apply functions directly to the fields regardless of the approach we use to access the elements.  
+
+```{r, list_example_f}
+class( my_list[[1]] )
+
+length( my_list[[1]] )
+
+class(my_list[[3]])
+
+length(my_list[[3]])
+```
+
+Lastly, we can access the fields using the field name as a string with the double bracket notation.  
+
+```{r, list_example_g}
+my_list[['a']]
+
+my_list[['c']]
+```
+
+The `$` operator is useful when exploring a data object or if we exactly know the names of the fields in the list. Sometimes however we wish to programmatically interact with a list. That's where the double bracket notation is more useful. For example, we may want to iterate over the fields in a list and apply a function to each field. We can use the double bracket notation to access the fields based on their index values. Thus, we need a vector which stores the field indices associated with the list. One way to create such a vector is by combining the `:` operator with the `length()` function as shown in the code chunk below.  
+
+```{r, list_example_h}
+1:length(my_list)
+```
+
+An alternative approach is to use the `seq_along()` function to create a sequence of integers **along** an object. I prefer this function over the previous approach. The code chunk below shows the resulting integer vector is the same as what we had before.  
+
+```{r, list_example_i}
+seq_along(my_list)
+```
+
+The `all.equal()` function confirms that the two approaches are in fact the same!  
+
+```{r, list_example_j}
+all.equal(1:length(my_list), seq_along(my_list))
+```
+
+Let's use a for-loop to iterate over the fields of `my_list` and print the length of field to the screen. Notice the for-loop iterating variable `n` is used to access the element from `my_list` with the double bracket notation.  
+
+```{r, list_example_k}
+for(n in seq_along(my_list))
+{
+  print( length( my_list[[n]] ) )
+}
+```
+
+We can also iterate over the list using the field names. We can access the field names with the `names()` function applied to the list.  
+
+```{r, list_example_l}
+names( my_list )
+```
+
+The returned values are a character vector, which is confirmed in the code chunk below.  
+
+```{r, list_example_m}
+class( names(my_list) )
+```
+
+The field name character can be passed into the double bracket notation to access that particular field. The code chunk below shows how to print the length of each field to the screen, just as we did previously. This time however, the for-loop iterating variable `field_name` is used to access the element from `my_list` as a character string.  
+
+```{r, list_example_n}
+for(field_name in names(my_list))
+{
+  print( length( my_list[[field_name]] ) )
+}
+```
+
+It is important to note that we were printing the lengths of the list fields and **not** the length of the list itself. Applying the `length()` function to the `my_list` object returns a value of 4, as shown below. Thus, the length of a list is equal to the number of fields it contains.  
+
+```{r, list_example_o}
+length( my_list )
+```
+
+When working with a list it can be useful to check the "structure" of the list via the `str()` function.  
+
+```{r, list_example_p}
+str( my_list )
+```
+
+The `str()` function is useful when you are first working with a list. It gives you a quick "glimpse" of the fields, their data types, their lengths, and a few representative values. If the fields in a list are themselves rather complicated objects the `str()` displayed results may seem complex to look like. For those reasons, I like to first check the data type of the object, then show the field names, and then check the field data types. We already know how to check the data type of an object and show the field names.  
+
+```{r, list_example_q}
+class( my_list )
+
+names( my_list )
+```
+
+We can use a for-loop to check the field data types, similar to how we printed the field lengths.  
+
+```{r, list_example_r}
+for(field_name in names(my_list))
+{
+  print( class( my_list[[field_name]] ) )
+}
+```
+
+However, we can use funtional programming techniques to perform this operation without a for-loop. We will learn more about functional programming later, but here's a quick demo with the base R function `sapply()`. The first argument is the object we want to iterate over and the second argument is the function we wish to apply to each element.  
+
+```{r, list_example_s}
+sapply(my_list, class)
+```
+
+You may have been wondering why are are we using double brackets as we index the list. The reason is because the double brackets, `[[ ]]`, instructs `R` to "look" at the element contained in the list. If we use single brackets, `[ ]`, `R` will index or slice the list and **keep** the object as a list. Thus, we will not access the underlying object. Thus, we should think carefully about what we are trying to accomplish when working with lists. If we want to access the objects contained in the list we must use double brackets. If we want to index or slice a list and keep the result as a list, we use single brackets.  
+For example, to return all fields except the 4th field in the list we can slice the list as:  
+
+```{r, list_example_t}
+my_list[ 1:3 ]
+```
+
+Or, we can use the "slice except" operation with the `-` operator:  
+
+```{r, list_example_u}
+my_list[ -4 ]
+```
+
+If we wanted just the 1st and 4th elements in `my_list` as a list:  
+
+```{r, list_example_v}
+my_list[ c(1, 4) ]
+```
+
+The code chunk below confirms that we sliced a list and returned a list **not** the underlying field data types.  
+
+```{r, list_example_w}
+class( my_list[c(1, 4)] )
+```
+
+## Data frames
+
+A special type of list is the `data.frame`. It is intended for rectangular or tabular data like an Excel spread sheet. The `data.frame` is the workhorse of data storage in `R` and is pivotal for many data analysis applications. The Pandas DataFrame is based on the `R` `data.frame`.  
+
+As with a "standard" list, the elements or fields of a `data.frame` do **not** to be the same data type. A `data.frame` can therefore store heterogeneous data. However, unlike a "standard" list, all fields must have the same length! This is why we can think of the fields of a `data.frame` as variables or **columns** in a spreadsheet!  
+
+Let's create a `data.frame` consisting of 4 columns, `x1` through `x4`.  
+
+```{r, df_example_a}
+my_df <- data.frame(x1 = 1:4,
+                    x2 = c('yes', 'no', 'maybe', 'hello'),
+                    x3 = seq(-1, 1, length.out = 4),
+                    x4 = c(TRUE, FALSE, FALSE, TRUE))
+```
+
+If we print the `data.frame` to screen we get a different display than what we saw with the list. This is because a `data.frame` is intended to be a  "rectangular" spread sheet like object.  
+
+```{r, df_example_b}
+my_df
+```
+
+We can apply functions to a `data.frame` such as `str()`.  
+
+```{r, df_example_c}
+str( my_df )
+```
+
+Because a `data.frame` is a specialized list we can access the *columns* using the `$` operator.  
+
+```{r, df_example_d}
+print( my_df$x1 )
+
+print( my_df$x3 )
+
+### do not necessarily need the `print()` function though
+my_df$x4
+```
+
+We can apply functions to the columns of the `data.frame` just as we applied functions to fields of a list.  
+
+```{r, df_example_e}
+class( my_df$x1 )
+
+class( my_df$x2 )
+```
+
+The data types displayed above are different from the data type associated with the `my_df` object. A `data.frame` is a **container** of other data objects!  
+
+```{r, df_example_f}
+class( my_df )
+```
+
+We can slice or subset the `data.frame` using indices with single square brackets. Because a `data.frame` is considered two-dimesional (like a spread sheet) we need to supply two index values. The first index is the row index. The second index is the column index. The first row's value for the second column is:  
+
+```{r, df_example_g}
+my_df[1, 2]
+```
+
+The second row of the third column:  
+
+```{r, df_example_h}
+my_df[2, 3]
+```
+
+Let's check by displaying the entire `data.frame` again. Can you confirm that two previous values we looked at are correct?  
+
+```{r, df_example_i}
+my_df
+```
+
+We can slice multiple rows by using a vector instead of a scalar for the row index.  
+
+```{r, df_example_j}
+my_df[c(1, 3), 4]
+```
+
+We can access all rows by leaving the row position blank in the brackets. This will seem a little confusing at first since the code looks like we "forgot" to include an index. For example, all rows for the 4th column and all rows for the second column are displayed below.  
+
+```{r, df_example_k}
+my_df[, 4]
+
+my_df[, 2]
+```
+
+We can do the same thing for 1 row and all columns.  
+
+```{r, df_example_l}
+my_df[2, ]
+```
+
+Notice that the above display "looks" different than when we slice all rows of a column. This is an unfortunate *side effect* of base R operations. The data type is "dropped down" from the `data.frame` to a regular vector when we extract a column compared to a row. The code chunk below confirms this is the case by applying the `class()` function to all returned rows of the 2nd column then all returned rows of the 4th column. Contrast the returned data type when we select all columns from the 2nd row and all columns from the 4th row.  
+
+```{r, df_example_m}
+class( my_df[, 2] )
+
+class( my_df[, 4] )
+
+class( my_df[2, ] )
+
+class( my_df[4, ])
+```
+
+This drop down occurs when we go from the 2D `data.frame` to a 1D object where the elements are all of the same data type. This can create unexpected behavior. We can prevent that from happening by including `drop = FALSE` when we subset the `data.frame`. The `drop` argument is added to the subset by including a comma **after** the column index. This means we will have 2 commas within the single bracket notation, as shown below. The output of the code chunk displays three returned `data.frame`s even though because we forced the objects to **not** drop down.  
+
+```{r, df_example_n}
+my_df[, 4, drop = FALSE]
+
+my_df[, 2, drop = FALSE]
+
+my_df[2, , drop = FALSE]
+```
+
+We can confirm these are in fact `data.frame` objects by calling the `class()` function.  
+
+```{r, df_example_o}
+class( my_df[, 4, drop = FALSE] )
+
+class( my_df[, 2, drop = FALSE] )
+
+class( my_df[2, , drop = FALSE] )
+```
+
+We can select multiple columns by passing in a vector for the column indices instead of a scalar value. The code chunk below shows how to select the first row from the 1st and 3rd columns.  
+
+```{r, df_example_p}
+my_df[1, c(1, 3)]
+```
+
+We can combine slicing the rows of a `data.frame` with slicing the columns:  
+
+```{r, df_example_q}
+my_df[c(1, 3), c(1, 3)]
+```
+
+We can select all rows by "neglecting" the row index, just as when we selected a single column.  
+
+```{r, df_example_q2}
+my_df[, c(1, 3)]
+```
+
+However, I don't like to select columns by the index. It's not "safe" since we must remember the exact column position a variable is located at. What if, for whatever reason, the column positions change? Our code may not crash, but our code would no longer appropriate! Instead, we can access the columns based on the field or *variable* name. This works because a `data.frame` is just a special list! The code chunk below selects the `x1` column by using the character `'x1'` as the "column index".  
+
+```{r, df_example_r}
+my_df[, 'x1']
+```
+
+And remember selecting a single column will "drop down" to the vector. We can include `drop = FALSE` to prevent the drop down side effect.  
+
+```{r, df_example_s}
+my_df[, 'x1', drop = FALSE]
+```
+
+We can also select multiple columns with a character vector.  
+
+```{r, df_example_t}
+my_df[, c("x1", "x3")]
+```
+
+## Tidyverse
+
+We can conditionally subset the rows of a `data.frame` similar to how we conditional subset the elements of a vector. The notation changes slightly because we are working with a `data.frame` object which has rows and columns rather than simply elements. For example, the code chunk below shows how to conditionally subset `my_df` based on `x3` being greater than zero. The `x3` variable is accessed via the `$` operator and the conditional test is passed in as the slicing vector to the rows of `my_df`.  
+
+```{r, df_example_u}
+my_df[ my_df$x3 > 0, ]
+```
+
+
+However, I prefer to focus on the **tidyverse** approach to R programming for data manipulation. The "tidyverse" way brings in declarative style nouns and verbs analogous to SQL for manipulating data. As you will see throughout the semester the "tidyverse way" creates data manipulation **pipelines** that read left-to-right. The idea is to create code that is more readable, reproducable, and user friendly compared to the base `R` syntax.  
+
+Importing in `tidyverse` is performed by calling the `library()` function. You must have the package downloaded and installed in order to call `library(tidyverse)`. If you do not have the package installed, an error will occur. `tidyverse` is a "meta" package and loads in multiple packages into the environment. The code chunk below imports `tidyverse` and the output tells us what libraries are brought in, as well as their version numbers.  
+
+```{r, import_tidyverse_pkg}
+library(tidyverse)
+```
+
+The tidyverse data manipulation package is `dplyr`. The `dplyr` cheat sheet is quite good at giving a high level overview of the important functions within `dplyr`. The RStudio cheat sheets are a great resource for quickly learning about multiple areas in the R ecosystem.  
+
+[RStudio cheat sheets](https://www.rstudio.com/resources/cheatsheets/)  
+
+This report gives the bare minimum set of `dplyr` functions you should be familar with. Contrast these functions (the declarative actions or "verbs") with the Python Pandas functionality discussed in CMPINF 2100. It can be useful to understand the differences in the syntax. I became a better a programmer in Python because of `dplyr`! For more details about the `dplyr` package and suite of data manipulation packages, please see [Chapter 5 from R4DS](https://r4ds.had.co.nz/transform.html).  
+
+To select a column, we use the `select()` function. The first argument is the `data.frame` the remaining arguments are the columns we want to select. Notice that `select()` does **not** return a regular `R` vector!  
+
+```{r, dplyr_example_a}
+select(my_df, x1)
+```
+
+The `tidyverse` tries to remove some of the weird side effects in base `R`. The idea is that if you are working with a `data.frame` the returned result should be a `data.frame` **unless** you explicitly state otherwise. We will see how to change the returned data type later on.  
+
+To select multiple columns we just pass in multiple column names.  
+
+```{r, dplyr_example_b}
+select(my_df, x1, x3)
+```
+
+Notice that we did **not** have to include quotes around the variable names! It's like we can type the column names as if they are objects in the environment. This is because the `tidyverse` allows for **non-standard evaluation** (NSE). Non-standard evaluation is useful for exploring data. We do not have to worry about quotes, so it's less to type and fewer buttons to press. As you will see later on, non-standard evaluation lends itself to tab or auto completion more easily during data manipulation pipelines to help remove typos and syntax errors.  
+
+That said, non-standard evaluation however makes progammatic access challenging. There are several helper functions to select to give programmatic control. For example, `starts_with()` and `ends_with()` are paritcularly useful. The `starts_with()` helper function selects all columns that "start with" a specified character string. For example, let's select all columns that "start with" `'x'`.  
+
+```{r, dplyr_example_c}
+select(my_df, starts_with("x"))
+```
+
+In our present example, all columns start with `'x'`! So maybe that was not a particular interesting example. However, let's select all columns that "end with" `'3'`:  
+
+```{r, dplyr_example_d}
+select(my_df, ends_with('3'))
+```
+
+The `starts_with()` and `ends_with()` helpers are particularly useful when the `data.frame` columns have common patterns or naming conventions. Other helper functions exist which enable regular expressions to be used for selecting columns. We will see such examples as we go through the semester.  
+
+Alternatively we can select columns with strings following **standard evaluation**. `tidyverse` is **very** explicit. So rather than just passing in a character string, `tidyverse` prefers that we specify we want "all of" of the values in a string.  
+
+```{r, dplyr_example_e}
+select(my_df, all_of(c("x1", "x3")))
+```
+
+This allows us to define a vector of character strings to programmatically select columns. For example, let's create a vector, `cols_to_select`, which has values of `'x2'` and `'x4'`. We can programmatically access those columns by using the `all_of()` helper function in conjuction with the second argument from `select()`.  
+
+```{r, dplyr_example_e2}
+cols_to_select <- c('x2', 'x4')
+
+select(my_df, all_of(cols_to_select))
+```
+
+The `select()` verb in `dplyr` is for selecting columns and does not apply to selecting rows. With `dplyr` we use the `slice()` verb to select rows based on the row index. Thus, we *slice* the `data.frame` just as we have described that process throughout this report. The first argument to `slice()` is the `data.frame` object we wish to slice and the second argument is the index we wish to return. Slicing the first row from `my_df` is performed as shown below.  
+
+```{r, dplyr_example_f}
+slice( my_df, 1 )
+```
+
+Slicing multiple rows requires assigning a vector to the second argument of `slice()`. Slicing the first and third rows of `my_df` is performed below:  
+
+```{r, dplyr_example_g}
+slice(my_df, c(1, 3))
+```
+
+Selecting rows based on a conditional test is known as **filter**ing the data set in `dplyr`. The `filter()` function returns all rows that satisfy the condition. We are "filtering out" everything that does **not** meet the condition. The first argument to `filter()` is the `data.frame` we wish to subset, the remaining arguments are the conditional tests we wish to apply to the object. Let's filter `my_df` such that we keep only the rows where `x3` is greater than zero.  
+
+```{r, dplyr_example_h}
+filter(my_df, x3 > 0)
+```
+
+Since `x4` is a boolean we can find all rows that are TRUE by simply passing in `x4` as the second argument to `filter()`, as shown below.  
+
+```{r, dplyr_example_i}
+filter(my_df, x4)
+```
+
+We could be more exact in this case by testing the condition that `x4 == TRUE`. Using this more exact conditional test returns the same result we had previously.  
+
+```{r, dplyr_example_j}
+filter(my_df, x4 == TRUE)
+```
+
+If we want all rows where `x4` is FALSE, we could use `x4 == FALSE` as the conditional test. However, since `x4` is a boolean data type we can set the condition as "not TRUE" or `!x4`.  
+
+```{r, dplyr_example_k}
+filter(my_df, !x4)
+```
+
+However, you will never see me actually use this style of programming with the tidyverse! When we imported `dplyr` via `tidyverse` we also brought in the **forward-pipe** operator `%>%` from the `magrittr` package. I love the forward-pipe! It allows us to *chain* together actions into a *pipeline* or a *workflow* that produces code that reads left-to-right rather than "inside-out".  
+
+The forward-pipe passes or *pipes* an object into the **first-argument** of a function. So if we want to filter rows based on `x3` being greater than zero, we can use the following pipeline:  
+
+```{r, pipe_example_a}
+my_df %>% filter(x3 > 0)
+```
+
+What's the point of the forward-pipe operator? Chaining multiple to many steps together! Let's chain together filter based on `x3` and then selecting just two columns from the `data.frame`.  
+
+```{r, pipe_example_b}
+my_df %>% 
+  filter(x3 > 0) %>% 
+  select(x1, x3)
+```
+
+How can we have performed those actions with the usual "inside-out" function approach? The first object is the inner most part of the code, while the last action is the outer most portion of the code.  
+
+```{r, pipe_example_c}
+select( filter( my_df, x3 > 0), x1, x3 )
+```
+
+This isn't so bad, but if we have an error it can be a little unwieldy to debug. The pipeline created from the forward pipe operator is **modular**. The code chunk below gives the same set of actions with the forward-pipe operator. If you highlight and run each line (no including the `%>%` in the highlight) you will see the output of that command displayed to the screen. Thus, you can run each portion of a data manipulation and "see" the intermediate set of results.  
+
+```{r, pipe_example_d}
+my_df %>% 
+  filter(x3 > 0) %>% 
+  select(x1, x3)
+```
+
+The pipeline formulation helps when we are testing out potentially many steps in the workflow For example, let's include the product of `x1` and `x3` as a new column in our `data.frame`. The `tidyverse` action or verb terminology is to change or **mutate** the object. That's why when we want to add new columns to a `data.frame` we will use the `mutate()` function. The code chunk below shows how to multiply `x1` and `x3` and assign the result to the `x1_times_x3` variable.  
+
+```{r, pipe_example_e}
+my_df %>% 
+  mutate(x1_times_x3 = x1 * x3)
+```
+
+Checking the original `my_df` shows that the object is unchanged. Thus, `mutate()` does **not** modify in place!  
+
+```{r, pipe_example_f}
+my_df
+```
+
+Let's now combine the actions together into a single data manipulation pipeline. We will first mutate our `data.frame`, then filter based on the calculated quantity, and then select a subset of the columns. Our pipeline now has 3 steps!  
+
+```{r, pipe_example_g}
+my_df %>% 
+  mutate(x5 = x1 * x3) %>% 
+  filter(abs(x5) >= 1) %>% 
+  select(x1, x3, x5)
+```
+
+Since we don't modify the existing object in our pipeline, we can recall attributes of the original object if needed. For example, let's programmatically select the columns in the original `my_df`.  
+
+```{r, pipe_example_h}
+my_df %>% 
+  mutate(x5 = x1 * x3) %>% 
+  filter(abs(x5) >= 1) %>% 
+  select(all_of(names(my_df)))
+```
+
+For our simple example, we could have reached this same state by selecting all except `x5` via the `-` operator.  
+
+```{r, pipe_example_i}
+my_df %>% 
+  mutate(x5 = x1 * x3) %>% 
+  filter(abs(x5) >= 1) %>% 
+  select(-x5)
+```
+
+If we want to assign the result to a variable, we just use the assignment operator.  
+
+```{r, pipe_example_j}
+small_df <- my_df %>% 
+  mutate(x5 = x1 * x3) %>% 
+  filter(abs(x5) >= 1) %>% 
+  select(-x5)
+```
+
+We can manipulate this new object as we did with the original object. For example, let's display the contents to screen.  
+
+```{r, pipe_example_k}
+small_df
+```
+
+The forward-pipe operator works with other functions as well. We do not just have to pipe to `tidyverse` related functions! For example, we can pipe `small_df` to the `dim()` function to return the number of rows and number of columns.  
+
+```{r, pipe_example_l}
+small_df %>% dim()
+```
+
+We can also pipe the `small_df` object to the `class()` function to check the data type.  
+
+```{r, pipe_eample_m}
+small_df %>% class()
+```
+
+The `tidyverse` equivalent to the `str()` function is the `glimpse()` function.  
+
+```{r, pipe_example_n}
+small_df %>% glimpse()
+```
+
+Previously it was mentioned that the `select()` function does **not** drop down a single column `data.frame` to a regular vector. In some applications however, we may want to work with the regular vector extracted from a `data.frame`. The `pull()` function provides that functionality by "pulling" a column "out of" the `data.frame`. Let's pull the `x1` column from `my_df` and display it to screen.  
+
+```{r, pull_example_a}
+my_df %>% 
+  pull(x1)
+```
+
+As we can see above, the print out is a regular vector. Let's confirm this though by pipping the returned pulled object to `class()`.  
+
+```{r, pull_example_b}
+my_df %>% 
+  pull(x1) %>% 
+  class()
+```
+
+Let's compare the above behavior to the result of piping the returned `select()` statement result to `class()`.  
+
+```{r, pull_example_c}
+my_df %>% 
+  select(x1) %>% 
+  class()
+```
+
+The `pull()` function is intended to pull a single column to a vector. It can allow for programmatic access of the columns, as shown below:  
+
+```{r, pull_example_d}
+my_df %>% pull(all_of(c("x1")))
+```
+
+However, usually when I programmatically extract a column from a `data.frame` I combine `select()` with `pull()`. The `pull()` function by default will pull a single column `data.frame` into a regular vector. Thus, I first use `select()` to select a specific column and then pull that column out of the object.  
+
+```{r, pull_example_e}
+my_df %>% 
+  select(all_of(c("x1"))) %>% 
+  pull()
+```
+

@@ -1,0 +1,215 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 02"
+subtitle: "Intro to ggplot2"
+author: "Dr. Joseph P. Yurko"
+date: "5/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+## Anscombe data set
+
+```{r, check_dataset}
+anscombe %>% class()
+```
+
+```{r, check_ans_str}
+anscombe %>% str()
+```
+
+Or the tidyverse way.  
+
+```{r, check_ans_glimpse}
+anscombe %>% glimpse()
+```
+
+```{r, asn_check_head}
+anscombe %>% head()
+```
+
+Select the `x1` and `y1` columns and rename them `x` and `y`.  
+
+```{r, subset_ans}
+a1 <- anscombe %>% 
+  # select(x = x1, y = y1) # or could have done this
+  dplyr::select(ends_with("1")) %>% 
+  rename(x = x1, y = y1)
+```
+
+```{r, check_a1_glimpse}
+a1 %>% glimpse()
+```
+
+
+## ggplot2
+
+A `ggplot2` graphic starts with a call to the `ggplot()` function. I refer to the `ggplot()` call as the "parent ggplot call".  
+
+```{r, gg_example_1}
+ggplot()
+```
+
+The first argument to `ggplot()` function is `data`.  
+
+```{r, gg_example_2}
+a1 %>% 
+  ggplot()
+```
+
+Map the basic aesthetics of a figure the `x` and `y` aesthetics (the x and y axes variables).  
+
+```{r, gg_example_3}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y))
+```
+
+
+Check the data summary.  
+
+```{r, check_a1_summary}
+a1 %>% summary()
+```
+
+How to visualize the aesthetics.  Geometric objects are defined by the suite of `geom_*` functions from `ggplot2`. A scatter plot is represented by the `geom_point()` geometric object.  
+
+```{r, gg_example_4}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point()
+```
+
+
+Change the marker color from the default to `'steelblue'`. Do we specify the `color` argument inside `aes()` or outside `aes()`? Let's see what happens if we set `color` inside `aes()`.  
+
+```{r, gg_example_5}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(color = 'steelblue'))
+```
+
+
+```{r, gg_example_5b}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(color = 'steelblue')) +
+  ggthemes::scale_color_colorblind()
+```
+
+```{r, gg_example_5c}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(color = 'steelblue')) +
+  ggthemes::scale_color_calc()
+```
+
+```{r}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(mapping = aes(color = 'a value I made up')) +
+  ggthemes::scale_color_calc()
+```
+
+
+
+`ggplot()` thinks there's a variable with a value `steelblue` and the legend exists to reference the possible values represented by the color.  
+
+If we want to "hard code" a visual quality a visual aesthetic we place that assignment **outside** the `aes()` function.  
+
+```{r, gg_example_6}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(color = 'steelblue')
+```
+
+Let's change the marker size.  
+
+```{r, gg_example_7}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(color = 'steelblue', size = 5.5)
+```
+
+Change the marker shape with the `shape` argument.  
+
+```{r, gg_example_8}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(color = 'steelblue', size = 5.5, shape = 15)
+```
+
+## Iris
+
+```{r, iris_1}
+iris %>% glimpse()
+```
+
+```{r, iris_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species,
+                           size = Species),
+             alpha = 0.5)
+```
+
+Let's use a manual size scale for the Species.  
+
+```{r, iris_3}
+my_size_values <- c(1, 2, 4)
+
+names(my_size_values) <- iris %>% distinct(Species) %>% pull()
+
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species,
+                           size = Species),
+             alpha = 0.5) +
+  scale_size_manual(values = my_size_values)
+```
+
+```{r, iris_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species,
+                           size = Species),
+             alpha = 0.5) +
+  scale_size_manual(values = my_size_values) +
+  ggthemes::scale_color_colorblind()
+```
+
+```{r, iris_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species,
+                           size = Species),
+             alpha = 0.5) +
+  scale_size_manual(values = my_size_values) +
+  ggthemes::scale_color_calc()
+```
+
+If you're an Excel user.  
+
+```{r, iris_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species,
+                           size = Species),
+             alpha = 0.5) +
+  scale_size_manual(values = my_size_values) +
+  ggthemes::scale_color_excel() +
+  theme_classic()
+```
+
