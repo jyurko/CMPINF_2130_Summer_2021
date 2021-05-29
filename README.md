@@ -1,5 +1,7 @@
 # CMPINF 2130 Summer 2021
 
+In-class programming examples are light on comments and discussion text. Please see the lecture recordings on Canvas for the discussion around each example.
+
 ## Week 01
 * Course introduction
 * Overview of major goals and themes
