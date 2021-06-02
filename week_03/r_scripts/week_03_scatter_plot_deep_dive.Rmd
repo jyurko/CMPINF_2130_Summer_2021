@@ -1,0 +1,966 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 03"
+subtitle: "Iris scatter plot aesthetics"
+author: "Dr. Joseph P. Yurko"
+date: "6/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_packages}
+library(tidyverse)
+```
+
+## Overview
+
+Last week we covered 3 out of the 5 components of a graphic.  
+
+* Data  
+* Aesthetic mappings  
+* Geometric objects  
+
+At the end of last week, we quickly introduced the fourth major component:  
+
+* scales (legends and guides)  
+
+## Iris data set
+
+Take a look at the `iris` data set.  
+
+```{r, glimpse_iris}
+iris %>% glimpse()
+```
+
+The graphic starts with the data. The data are piped into the `ggplot()` function. The "parent" `ggplot()` is usually where I **map** the `x` and `y` aesthetics. A scatter plot consists fundamentally of **points** therefore the geometric object used to display the data is the `geom_point()` function.  
+
+Make a scatter plot between `Sepal.Length` and `Sepal.Width`.  
+
+```{r, iris_scatter_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point()
+```
+
+We can examine the **correlation** between the two variables we plotted in the scatter plot. Correlation is a **linear** description. We can calculate the correlation matrix between variables in a `data.frame` using the `cor()` function.  
+
+```{r, iris_cor_mat}
+iris %>% 
+  select(Sepal.Length, Sepal.Width) %>% 
+  cor()
+```
+
+But we could also use the `dplyr` select helper functions to be more programmatic.  
+
+```{r, iris_cor_mat_2}
+iris %>% 
+  select( starts_with("Sepal.") )
+```
+
+And then pipe into `cor()`.  
+
+```{r, iris_cor_mat_3}
+iris %>% 
+  select(starts_with("Sepal.")) %>% 
+  cor()
+```
+
+Check the number of observations for each unique value or **level** of `Species`.  
+
+```{r, iris_check_counts}
+iris %>% count(Species)
+```
+
+If the correlation coefficient depends on the level of `Species` we should expect to see a qualitatively different trend between the two variables across the groups in a scatter plot.  
+
+This is why we can use other aesthetics besides just position to visually represent information. One such aesthetic is `color`.  
+
+```{r, iris_scatter_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species))
+```
+
+
+## Grouping
+
+How can we group in `R`, or more specicially in the `tidyverse`? We use the `group_by()` function. To replicate what we did in Pandas we need to use `group_by()` and the `group_map()` function. First, let's just see what the `group_by()` function does.  
+
+```{r, show_grouping_1}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species)
+```
+
+The `group_map()` function will programmatically apply a function to each grouped data set.  
+
+```{r, show_grouping_2}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  group_map( ~cor(.x) )
+```
+
+To combine everything into a `data.frame` we instead need to use the `group_modify()` function and include a data type conversion within our funtion to be applied.  
+
+```{r, show_grouping_3}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  group_modify( ~as.data.frame( cor(.x) ) )
+```
+
+
+I prefer the more tedious and explicit version within the tidyverse which requires us to using a mix of `group_by()`, "nesting", mutate, functional programming, and "unnesting".  
+
+We must group and then "nest" the grouped subsetted dataframes within a larger or "outer" data frame. We will use the `tidyr::nest()` function.  
+
+```{r, show_nest_1}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  tidyr::nest()
+```
+
+We can "see" or interact with the grouped subsetted data by accessing the newly created `data` column in the nested dataframe. Let's focus on the setosa group.  
+
+```{r, show_nest_3}
+setosa_data <- iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  filter(Species == 'setosa')
+```
+
+Check the data type.  
+
+```{r, show_nest_4}
+setosa_data %>% class()
+```
+
+We can access the `data` column with the `$` operator.  
+
+```{r, show_nest_5}
+setosa_data$data %>% class()
+```
+
+The grouped data frame contains lists!  
+
+```{r, show_nest_6}
+setosa_data$data %>% length()
+```
+
+We can access the elements in the list with the `[[]]` notation.  
+
+```{r, show_nest_7}
+setosa_data$data[[1]] %>% class()
+```
+
+Our grouped and nested data frame contains data frames!  
+
+```{r, show_nest_8}
+setosa_data$data[[1]] %>% glimpse()
+```
+
+We can then apply functions to the grouped data set.  
+
+```{r, show_nest_9}
+setosa_data$data[[1]] %>% cor()
+```
+
+To apply the correlation function, `cor()`, to all groups in the grouped data frame we need to use functional programming.  
+
+```{r, show_nest_10}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_mat = purrr::map(data, cor))
+```
+
+Convert from a matrix to a data frame.  
+
+```{r, show_nest_11}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_mat = purrr::map(data, cor)) %>% 
+  mutate(cor_df = purrr::map(cor_mat, as.data.frame))
+```
+
+Select and unnest -- so convert from the nested object to a "regular" data frame.  
+
+```{r, show_nest_12}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_mat = purrr::map(data, cor)) %>% 
+  mutate(cor_df = purrr::map(cor_mat, as.data.frame)) %>% 
+  select(Species, cor_df) %>% 
+  tidyr::unnest(cor_df)
+```
+
+In `R` if you think what I did is too tedious, there is the `corrr` package from the `tidymodels` universe (which is related to tidyverse) dedicated to working with correlation matrices.  
+
+## Themes and Colors
+
+We saw that we could use the marker shape to also define or represent the group. Essentially means we are using the marker shape to denote a categorical variable.  
+
+```{r, iris_scatter_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species))
+```
+
+The `scales_*` family of functions allow us to control the behavior of the aesthetics represented **on** the geometric objects.  
+
+The default color for categorical or discrete colors is `scale_color_discrete()`.  
+
+```{r, iris_scatter_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete()
+```
+
+We can modify the legend title with the first argument to the scale function.  
+
+```{r, iris_scatter_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("The color legend title")
+```
+
+If the scale legend titles are the same `ggplot()` will try to merge the scale legends together. The default categorical marker shape scale function is `scale_shape_discrete()`.  
+
+```{r, iris_scatter_7}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("The Species value") +
+  scale_shape_discrete("The Species value")
+```
+
+By default the legend is located on the right side of the graphic.  
+
+```{r, iris_scatter_8}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label")
+```
+
+We can move the legend position using the `theme()` function. Please see the [`theme()` documentation](https://ggplot2.tidyverse.org/reference/theme.html) for more info.  
+
+```{r, iris_scatter_9}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme(legend.position = "top")
+```
+
+Or we can put the legend at the bottom.  
+
+```{r, iris_scatter_10}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme(legend.position = "bottom")
+```
+
+But there are some premade default theme "patterns" that we can apply. We saw the `theme_classic()` last week.  
+
+```{r, iris_scatter_11}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme_classic() +
+  theme(legend.position = "top")
+```
+
+The default theme pattern is "grey".  
+
+```{r, iris_scatter_12}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme_grey() +
+  theme(legend.position = "top")
+```
+
+A dark theme.  
+
+```{r, iris_scatter_13}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme_dark() +
+  theme(legend.position = "top")
+```
+
+
+I prefer the black-white theme.  
+
+```{r, iris_scatter_14}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete("A very long legend title for the Species value label") +
+  scale_shape_discrete("A very long legend title for the Species value label") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+What if we needed to use lighter colors? How would the colors appear on the plot?  
+
+With the default discrete color scale, `scale_color_discrete()` we can lighten colors with the *luminance* or `l` argument.  
+
+```{r, iris_scatter_15}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete(l = 95) +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can further modify the color via the `c` argument or the *chroma* which controls the color intensity.  
+
+```{r, iris_scatter_16}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete(l = 95,c = 45) +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+If we need to use these kind of very light colors, we want to change to a dark background panel color.  
+
+```{r, iris_scatter_17}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete(l = 95,c = 45) +
+  scale_shape_discrete() +
+  theme_dark() +
+  theme(legend.position = "top")
+```
+
+I don't like the default discrete colors. Other color scales exist, some that much better suited for qualtiative or discrete variables. But some of those better scales are limited in the number of colors they can show. When I use the default discrete scale, I tend to make the markers darker because I prefer the white background.  
+
+```{r, iris_scatter_18}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_discrete(l = 45) +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+For categorical variable the ColorBrewer scales are quite good. The brewer color schemes are associated with the `scale_color_brewer()` function. Some useful color palettes to consider from Brewer are: Set1, Set2, Pastel1, Accent, and Dark2.  
+
+```{r, iris_scatter_19}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Examine other Brewer palettes.  
+
+```{r, iris_scatter_20}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  scale_color_brewer(palette = "Dark2") +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+The [brewer documentation](https://ggplot2.tidyverse.org/reference/scale_brewer.html)  
+
+The previous color palettes are not color blind safe. But that's where the `ggthemes` package helps out and we saw the colorblind friendly palette last week.  
+
+```{r, iris_scatter_21}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## Marker shape
+
+A quick way to change the type of shape is to go from a SOLID to an OPEN shape. This is controlled by the default `scale_shape_discrete()` argument `solid`.  
+
+```{r, iris_scatter_22}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species)) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = FALSE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Let's make the sizes bigger.  
+
+```{r, iris_scatter_23}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = FALSE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Compare with the solid shape.  
+
+```{r, iris_scatter_24}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = TRUE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## transparency
+
+The marker transparency can help us "see" if there are multiple observations located at the same set of `x` and `y` aesthetic positions. The transparency is controlled by `alpha`. A value of `alpha = 0.5` means that it takes 2 observations directly on top of each other to yield an opague marker.  
+
+```{r, iris_scatter_25}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4,
+             alpha = 0.5) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = TRUE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+If we use a very low value of `alpha`, such as `alpha=0.1` we need 10 observations directly on top of each other to have a fully opague point.  
+
+```{r, iris_scatter_26}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4,
+             alpha = 0.1) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = TRUE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+May consider alpha of 0.33.  
+
+```{r, iris_scatter_27}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4,
+             alpha = 0.33) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete(solid = TRUE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can look up the various aesthetics associated with each type of geometric object.  
+
+[Aesthetics specifications](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)  
+
+### Points with color and fill
+
+The `fill` is associated with "filling a region or area with color". Think of painting a rectangle. The `color` aesthetic is associated with applying color to a **point** in space. ggplot2 says we use a "color stroke". Color is associated with points and lines, while fill is associated with polygons/regions/areas.  
+We can use points that have both color and fill if we want to use effectively 2 separate color scales. One for the point color stroke and one for the area region fill.  
+
+Use the marker fill, color, and shape to denote `Species`. So we are using three distinct aesthetics for one variable. To force the shapes with both fill and color, we will use the `scale_shape_manual()` function. Any of the `scale_*_manual()` functions give us the fine tune control to show exactly what we want. We specify the `values` as a named vector.  
+
+Use marker shapes 21, 24, and 25.  
+
+```{r, iris_scatter_28}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           fill = Species,
+                           shape = Species),
+             size = 6,
+             alpha = 1.0) +
+  ggthemes::scale_fill_colorblind() +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = c("setosa" = 21,
+                                "versicolor" = 24,
+                                "virginica" = 25)) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can control the "size" of the color stroke with the `stroke` argument for points that have both fill and color.  
+
+```{r, iris_scatter_29}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           fill = Species,
+                           shape = Species),
+             size = 6,
+             alpha = 1.0,
+             stroke = 2.25) +
+  ggthemes::scale_fill_colorblind() +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = c("setosa" = 21,
+                                "versicolor" = 24,
+                                "virginica" = 25)) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can apply a manual color scale if we would like. Here's a [list of the names](http://sape.inf.usi.ch/quick-reference/ggplot2/colour) of colors we can type in.  
+
+```{r, iris_scatter_30}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           fill = Species,
+                           shape = Species),
+             size = 6,
+             alpha = 1.0,
+             stroke = 2.25) +
+  ggthemes::scale_fill_colorblind() +
+  scale_color_manual(values = c("setosa" = 'gold',
+                                'versicolor' = 'navyblue',
+                                'virginica' = 'darkorange')) +
+  scale_shape_manual(values = c("setosa" = 21,
+                                "versicolor" = 24,
+                                "virginica" = 25)) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## Facets
+
+The last major component is the **facet** or *subplot*. Maybe we want to compare the relationship of variables across groups where the groups are represented by separate subplots. It's common to consider creating subplots with for-loops. We loop over an interating variable and that iterating variable controls how we subset the data to create the visual in each subplot.  
+
+Controlling the subplot based on a variable means there is a variable in the data set that dictages how we **view** the data. A facet is a "window" is a particular view to a subset of the larger data set. The grammar of graphics considers facets (subplots) as an integral part of creating a visualization to graphically communicate relationships in our data.  
+
+In `ggplot2`, the facets are specifed by the `facet_` family of functions **outside** of the geometric objects. Let's include the `Species` as facets where the facets are "wrapped".  
+
+```{r, iris_facet_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap( ~ Species ) +
+  ggthemes::scale_color_colorblind() +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+In this case, since the marker shape and the marker color stroke also correspond to the facet variable, let's turn off the legend.  
+
+```{r, iris_facet_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap( ~ Species ) +
+  ggthemes::scale_color_colorblind(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## Other variables
+
+We have created grahpics up to this point to visualize 2 continuous and 1 categorical. We have mapped the categorical to multiple aesthetics and used facets to distinguish between the groups.  
+
+Can we represent all of the variables in the `iris` data set?  
+
+```{r, iris_summary_check}
+iris %>% summary()
+```
+
+Let's create a scatter plot between the Petal variables, just like we did for the Sepal variables.  
+
+```{r, petal_scatter_1}
+iris %>% 
+  ggplot(mapping = aes(x = Petal.Length, y = Petal.Width)) +
+  geom_point() +
+  theme_bw()
+```
+
+Check the correlation coefficient between the two Petal variables.  
+
+```{r, petal_cor_check}
+iris %>% 
+  select(starts_with("Petal.")) %>% 
+  cor()
+```
+
+Can visualize our scatter plot colored by Species.  
+
+```{r, petal_scatter_2}
+iris %>% 
+  ggplot(mapping = aes(x = Petal.Length, y = Petal.Width)) +
+  geom_point(mapping = aes(color = Species)) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+
+Start to bring the Petal variables INTO the visualization of the Sepal variables. We have used color to denote a categorical variable, but color can also be used to represent a continuous variable! A continuous variable has a **sequential** order. We want to preserve that sequential order of the values. So the color scales for continuous variables are usually denoted as sequential. We can also have diverging scales, to represent a sequential order **away** from a central point (in two directions).  
+
+Let's make a scatter plot between the Sepal variables with the `Petal.Length` represented by the color.  
+
+```{r, iris_3var_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  theme_bw()
+```
+
+
+The default continuous color scale function is `scale_color_continuous()`.  
+
+```{r, iris_3var_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_continuous() +
+  theme_bw()
+```
+
+I don't like the default color scale for continuous variables. I pretty much always switch to the viridis color palettes for sequential colors. The viridis color palette is controlled by the `scale_*_viridis_c()` for continuous colors.  
+
+```{r, iris_3var_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+
+Other options exist within the viridis set of colors.  
+
+```{r, iris_3var_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_viridis_c(option = "magma") +
+  theme_bw()
+```
+
+
+```{r, iris_3var_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_viridis_c(option = "inferno") +
+  theme_bw()
+```
+
+```{r, iris_3var_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_viridis_c(option = 'plasma') +
+  theme_bw()
+```
+
+Sometimes we want to use a diverging color scale, if we are interested in the **directioin** away from a centrol or *midpoint*. We can create diviging color palettes with the `scale_color_gradient2()` function.  
+
+```{r, iris_3var_7}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_gradient2(low = 'red', mid = 'grey', high = 'blue',
+                        midpoint = median(iris$Petal.Length)) +
+  theme_bw()
+```
+
+Another common diverging palette is orange to grey to blue.  
+
+```{r, iris_3var_8}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_gradient2(low = 'darkorange', mid = 'grey', high = 'navyblue',
+                        midpoint = median(iris$Petal.Length)) +
+  theme_bw()
+```
+
+It's also common to use white for the midpoint, but then we should dark background theme.  
+
+```{r, iris_3var_9}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_gradient2(low = 'red', mid = 'white', high = 'blue',
+                        midpoint = median(iris$Petal.Length)) +
+  theme_bw()
+```
+
+```{r, iris_3var_10}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_gradient2(low = 'red', mid = 'white', high = 'blue',
+                        midpoint = median(iris$Petal.Length)) +
+  theme_dark()
+```
+
+Return to the sequential color scale with viridis.  
+
+```{r, iris_3var_11}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_color_viridis_c(option = 'viridis') +
+  theme_bw()
+```
+
+Sometimes it can be useful to "bin" or represent the continuous variable categorically with discrete color bins. Create "buckets" or "bins" of constant color where the value "jumps" across the bins.  
+
+```{r, iris_3var_12}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5) +
+  scale_colour_viridis_b(option = 'viridis') +
+  theme_bw()
+```
+
+
+We can create the bins ourselves and have more control. For example we can convert a continuous variable into a categorical variable with the `cut()` function. We can create the categorical variable directly within the `aes()` function.  
+
+```{r, iris_3var_13}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = cut(Petal.Length,
+                                       breaks = quantile(Petal.Length,
+                                                         c(0, 0.25, 0.5, 0.75, 1.0)),
+                                       include.lowest = TRUE)),
+             size = 4.5) +
+  scale_color_viridis_d() +
+  theme_bw()
+```
+
+If we apply the `cut()` function ourselves we probably want to modify the legend title.  
+
+```{r, iris_3var_14}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = cut(Petal.Length,
+                                       breaks = quantile(Petal.Length,
+                                                         c(0, 0.25, 0.5, 0.75, 1.0)),
+                                       include.lowest = TRUE)),
+             size = 4.5) +
+  scale_color_viridis_d("Petal.Length") +
+  theme_bw()
+```
+
+The simplest way to convert a continuous variable into a categorical variable is through binarizing. Just show two ordered values. This is easy to apply with conditional statements directly the `aes()` function.  
+For example, let's compare `Petal.Length` to it's median value.  
+
+```{r, iris_3var_15}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length > median(Petal.Length)),
+             size = 4.5) +
+  scale_colour_viridis_d(option = 'viridis') +
+  theme_bw()
+```
+
+Move the legend to the top.  
+
+```{r, iris_3var_16}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length > median(Petal.Length)),
+             size = 4.5) +
+  scale_colour_viridis_d(option = 'viridis') +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Let's combine using aesthetics of the `geom_point()` to show a continuous variable and a categorical variable together. We will use the color to denote the `Petal.Length` and the marker shape to denote the `Species`. Our plot will therefore communicate 4 variables at once!  
+
+```{r, iris_4var_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Species),
+             size = 4.5) +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We have one more continuous variable to consider! Let's use the facets to denote the `Species`.  
+
+```{r, iris_4var_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Species),
+             size = 4.5) +
+  facet_wrap( ~ Species ) +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can use the marker shape to designate a binarized version of Petal.Width. Lets use the shape to denote if the Petal.Width is greater than its median.  
+
+```{r, iris_5var_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Petal.Width > median(Petal.Width)),
+             size = 4.5) +
+  facet_wrap(~Species) +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() + 
+  theme(legend.position = "top")
+```
+
+Maybe we should consider transparency to help look at data points that are "on top" of each other.  
+
+```{r, iris_5var_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Petal.Width > median(Petal.Width)),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap(~Species) +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() + 
+  theme(legend.position = "top")
+```
+
+Or, maybe we should use the facets to denote the Petal.Width binary variable.  
+
+```{r, iris_5var_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap(~Petal.Width > median(Petal.Width)) +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() + 
+  theme(legend.position = "top")
+```
+
+Include the labels for the facet variable as well as the value in the facets.  
+
+```{r, iris_5var_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap(~Petal.Width > median(Petal.Width), 
+             labeller = "label_both") +
+  scale_color_viridis_c() +
+  scale_shape_discrete() +
+  theme_bw() + 
+  theme(legend.position = "top")
+```
+
+Binarize the Petal.Length to small and larger values.  
+
+```{r, iris_5var_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length > median(Petal.Length),
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap(~Petal.Width > median(Petal.Width), 
+             labeller = "label_both") +
+  scale_color_viridis_d() +
+  scale_shape_discrete() +
+  theme_bw() + 
+  theme(legend.position = "top")
+```
+

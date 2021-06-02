@@ -1,0 +1,336 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 03"
+subtitle: "Points, text, lines, and paths"
+author: "Dr. Joseph P. Yurko"
+date: "6/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+## Anscombe data
+
+```{r, glimpse_anscombe}
+anscombe %>% glimpse()
+```
+
+The `anscombe` data are a wide object.  
+
+```{r, check_ans_wide}
+anscombe
+```
+
+Last week we focused on the first data set, so the `x` and `y` variables that end in `"1"`. Let's continue to focus on the first data set today.  
+
+```{r, separate_first_data}
+a1 <- anscombe %>% 
+  select(ends_with("1")) %>% 
+  rename(x = x1, y = y1)
+
+a1 %>% glimpse()
+```
+
+Visualizing the relationship between `x` and `y` as a scatter plot.  
+
+```{r, ans_a1_viz}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 5.5) +
+  theme_bw()
+```
+
+Want to display text at specific points in the plot. It's useful supplemental information. A simple type of supplemental information to display is the row order index on a point. Our data set does not include such an index.  
+
+```{r, check_a1_rows}
+a1
+```
+
+We could manually add in a column for the row index, but the `tibble` package which is part of tidyverse has the `rowid_to_column()` to help out. 
+
+```{r, a1_add_rowid}
+a1 %>% 
+  tibble::rowid_to_column()
+```
+
+Include the rowid as text on the plot. The text is a geometric object. It has aesthetics, such as the `x` and `y` coordinate positions. And the `label` which is what we want to display at the position. There are two ways of showing text objects, the `geom_label()` and `geom_text()`.  
+
+```{r, a1_viz_label}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_label(mapping = aes(label = rowid)) +
+  theme_bw()
+```
+
+If we change the theme to a dark them the label "bubble" by default is still white color.  
+
+```{r, a1_viz_label_2}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_label(mapping = aes(label = rowid)) +
+  theme_dark()
+```
+
+
+`geom_text()` is more streamlined, it only shows the text label and does not include the "bubble" around the text.  
+
+```{r, a1_viz_text_1}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_text(mapping = aes(label = rowid)) +
+  theme_bw()
+```
+
+We can modify the size of the text with the `size` aesthetic.  
+
+```{r, a1_viz_text_2}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_text(mapping = aes(label = rowid),
+            size = 8.5) +
+  theme_bw()
+```
+
+
+We can also change the color.  
+
+```{r, a1_viz_text_3}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_text(mapping = aes(label = rowid),
+            size = 8.5, color = 'red') +
+  theme_bw()
+```
+
+We can combine multiple geometric objects together to creat a multi layered graphic. We add layers together to "build up" the final graphic.  
+
+```{r, a1_viz_text_4}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point() +
+  geom_text(mapping = aes(label = rowid)) +
+  theme_bw()
+```
+
+Let's modify the points so that we have larger points of a darker color with text of a lighter color on top.  
+
+```{r, a1_viz_text_5}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 7.5, color = 'black') +
+  geom_text(mapping = aes(label = rowid),
+            color = 'white') +
+  theme_bw()
+```
+
+Text aesthetics can be mapped to variables in the data set. So let's try the text color and size mapped to the rowid.  
+
+```{r, a1_viz_text_6}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 10, color = 'grey') +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid,
+                          size = rowid)) +
+  scale_color_viridis_c() +
+  scale_size_continuous() +
+  theme_bw()
+```
+
+So let's use a fill aesthetic for the markers and a color aesthetic for the font color. Specify a marker shape that has both fill and color stroke.  
+
+```{r, a1_viz_text_7}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  scale_fill_viridis_c() +
+  scale_color_manual(values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
+Turn off the legend guide for the text color and the marker fill.  
+
+```{r, a1_viz_text_8}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
+## Lines and paths
+
+When we want to express continuity we want to use lines. The `geom_line()` lets us express continuity in the x-axis variable. So `geom_line()` connects **sequential** points based on the value of the `x` aesthetic. For small data sets, I like to combine `geom_line()` and `geom_point()` so I can see the exact data points getting connected. To see why let's first just look at the `geom_line()`.  
+
+```{r, a1_viz_line_1}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_line() +
+  theme_bw()
+```
+
+Combining the line with the points lets us see that the "kinks" or the "mountain tops" are associated with data points.  
+
+```{r, a1_viz_line_2}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_line() +
+  geom_point() +
+  theme_bw()
+```
+
+The line is choppy because there's scatter in the data. Lines have aesthetics size is the line thickness, `linetype` controls if the line is solid, dashed, dotted, etc...  
+
+Let's now combine the point, the text, and the line in our graphic.  
+
+```{r, a1_viz_line_3}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_line(size = 1.) +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
+There is another way to express continuity...we can consider the row order in the data set. The `geom_path()` object connects points as the appear in the data.  
+
+```{r, a1_viz_path_1}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_path() +
+  theme_bw()
+```
+
+Why is it all over the place? Because the "path" follows the sequential ROW ORDER **not** the sequential x-axis ordering.  
+
+```{r, a1_viz_path_2}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_path(size = 1.55) +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
+Combine the `geom_line()` and the `geom_path()` a thick transparent for the path and a red dashed line for the sequential x-axis line.  
+
+```{r, a1_viz_path_3}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_path(size = 4.5, color = 'black', alpha = 0.25) +
+  geom_line(size = 1.25, color = 'red', linetype = 'dashed') +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
+The "best fit line" or regression line requires a statistical transformation and is considered its own geometric object. In ggplot2 it's known as the `geom_smooth()`. One way to "smooth" is with a linear trend. By default the `geom_smooth()` allows for a non-linear smoother, and so to force a linear relationship which want to specify `method = lm` and the `formula = y ~ x`.  
+
+```{r, a1_trend_1}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 5.5) +
+  geom_smooth(method = lm) +
+  theme_bw()
+```
+
+Specify the formula to remove the message.  
+
+```{r, a1_trend_2}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 5.5) +
+  geom_smooth(formula = y ~ x,
+              method = lm) +
+  theme_bw()
+```
+
+To turn off the confidence interval set `se = FALSE`.  
+
+```{r, a1_trend_3}
+a1 %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 5.5) +
+  geom_smooth(formula = y ~ x,
+              method = lm,
+              se = FALSE) +
+  theme_bw()
+```
+
+Combine the points, text, line, path, and trend.  
+
+```{r, a1_all_1}
+a1 %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_path(size = 4.5, color = 'black', alpha = 0.25) +
+  geom_line(size = 1.25, color = 'red', linetype = 'dashed') +
+  geom_point(size = 10,
+             mapping = aes(fill = rowid),
+             shape = 21, color = 'black', stroke = 1.) +
+  geom_text(mapping = aes(label = rowid,
+                          color = rowid > 6)) +
+  geom_smooth(formula = y ~ x,
+              method = lm,
+              se = FALSE,
+              size = 1.55) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = 'white')) +
+  theme_bw()
+```
+
