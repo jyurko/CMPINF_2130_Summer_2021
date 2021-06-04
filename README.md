@@ -25,3 +25,4 @@ In-class programming examples are light on comments and discussion text. Please 
 * Discretizing continuous variables
 * Facets (subplots) in ggplot2 vs Seaborn
 * Introduction to text, line, path, and smooth in ggplot2
+* Optional: creating hockey shot maps using Penguins/Islanders playoff game shot data
