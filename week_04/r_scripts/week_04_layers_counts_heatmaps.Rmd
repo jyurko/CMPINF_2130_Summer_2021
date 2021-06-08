@@ -1,0 +1,664 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 04"
+author: "Dr. Joseph P. Yurko"
+date: "6/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+## Review scatter plot essentials
+
+Let's use the `iris` data set again and make a scatter plot between the Sepal variables.  
+
+**Start simple**  
+
+```{r, iris_scatter_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  theme_bw()
+```
+
+We can add complexity by mapping additional variables to other aesthetics of the geometric object.  
+
+```{r, iris_scatter_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+Coloring by continuous variables.  
+
+```{r, iris_scatter_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5, alpha = 0.5) +
+  scale_color_viridis_c() +
+  theme_bw()
+```
+
+Add further complexity through facets.  
+
+```{r, iris_scatter_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap( ~ Species ) +
+  scale_color_viridis_c() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Create a binary version of `Petal.Width` and map that binary variable to the marker shape.  
+
+```{r, iris_scatter_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           shape = Petal.Width > median(Petal.Width)),
+             size = 4.5, alpha = 0.5) +
+  facet_wrap( ~ Species ) +
+  scale_color_viridis_c() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+We can keep Petal.Width continuous by mapping it to the marker size and the marker transparency.  
+
+```{r, iris_scatter_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Petal.Length,
+                           size = Petal.Width,
+                           alpha = Petal.Width)) +
+  facet_wrap( ~ Species ) +
+  scale_color_viridis_c() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+## Lines, paths, and trends
+
+A line shows continuity in the x-axis ordering.  
+
+```{r, iris_line_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_line() +
+  geom_point(size = 2.5) +
+  theme_bw()
+```
+
+The `geom_line()` is particularly useful when we want to show the **order** of a value with respect to the x-axis. A "RUN PLOT" or "RUN CHART" is one type of a figure where `geom_line()` is the kind of geom to use.  
+
+```{r, iris_line_2}
+iris %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = rowid, y = Sepal.Width)) +
+  geom_line() +
+  geom_point(size = 2.5) +
+  theme_bw()
+```
+
+
+Trends let us see the "signal through the noise". We will focus at first on linear relationships between the `y` and `x` aesthetics.  
+
+First, remake the scatter plot where we color by Species.  
+
+```{r, iris_trend_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+
+Add in a trend line to this plot with `geom_smooth()`. Force a linear model with `method = lm`.  
+
+```{r, iris_trend_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  geom_smooth(method = lm) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+Let's specify the formula we want so the warning is not displayed.  
+
+```{r, iris_trend_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  geom_smooth(method = lm,
+              formula = y ~ x) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+Last week we looked at the correlation coefficients.  
+
+```{r, iris_corr_1}
+iris %>% 
+  select(starts_with("Sepal.")) %>% 
+  cor()
+```
+
+But we know that's not the case when we consider grouping by the Species.  
+
+```{r, iris_corr_2}
+iris %>% 
+  select(starts_with("Sepal."), Species) %>% 
+  group_by(Species) %>% 
+  group_modify( ~ as.data.frame(cor(.x)))
+```
+
+
+Let's now map Species to the color aesthetic in `geom_smooth()`.  
+
+```{r, iris_trend_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  geom_smooth(method = lm,
+              formula = y ~ x,
+              mapping = aes(color = Species)) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+We could have got the same result if we mapped `Species` to `color` in the parent call.  
+
+```{r, iris_trend_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width,
+                       color = Species)) +
+  geom_point(mapping = aes(shape = Species),
+             size = 4.5, alpha = 0.5) +
+  geom_smooth(method = lm,
+              formula = y ~ x) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+
+If we do not map color in the parent `ggplot()` call, we can have separate smoothing lines for "all data" and for the individual Species.  
+
+```{r, iris_trend_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'red', fill = 'red') +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(color = Species)) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+We can remove the points, by simply **not** including the `geom_point()` layer.  
+
+**I DO NOT RECOMMEND THIS TYPE OF FIGURE**  
+
+```{r, iris_trend_7}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'red', fill = 'red') +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(color = Species)) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+For right now, I'll remove the confidence interval just so we can focus on the trend line.  
+
+**BUT I DON'T LIKE TO NORMALLY!!!!!**  
+
+```{r, iris_trend_8}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'red', fill = 'red',
+              se = FALSE) +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(color = Species),
+              se = FALSE) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+Lines have similiar aesthetics as points.  
+
+```{r, iris_trend_9}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'red', fill = 'red',
+              se = FALSE,
+              size = 2.5) +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(color = Species),
+              se = FALSE,
+              size = 1.25) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+linetype is analogous to marker shape.  
+
+```{r, iris_trend_10}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'red', fill = 'red',
+              se = FALSE,
+              size = 2.5) +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(color = Species,
+                            linetype = Species),
+              se = FALSE,
+              size = 1.25) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+We have up to now used `color` to force a grouping of the data "behind the scenes". We can be more explicit and state that the `group` aesthetic is `Species`.  
+
+```{r, iris_trend_11}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(mapping = aes(color = Species,
+                           shape = Species),
+             size = 4.5, alpha = 0.5) +
+  # smooth based on all data
+  geom_smooth(method = lm, formula = y ~ x,
+              color = 'purple',
+              mapping = aes(group = 1),
+              se = FALSE,
+              size = 2.5, linetype = 'dashed') +
+  # smooth per group 
+  geom_smooth(method = lm, formula = y ~ x,
+              mapping = aes(group = Species),
+              color = 'forestgreen', size = 2,
+              se = FALSE) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+## Statistical transformations
+
+Statistical transformation are ways of **deriving** or calculating aesthetics from "raw" data.  
+
+Essentially, the variable we will plot on the graph does **not** exist in the raw data set.  
+
+Linear models or *smoothers* are one type of statistical transformation, but the simplest one is to **count**.  
+
+How many rows exist for each *level* of `Species`.  
+
+```{r, iris_count_1}
+iris %>% count(Species)
+```
+
+Behind the scenes `count()` must first `group_by()` and then `summarize()` the data. Split-Apply-Combine: split the data into separate groups, apply a *summary* function, and combine the data back together.  
+
+```{r, iris_count_2}
+iris %>% 
+  group_by(Species) %>% 
+  summarise(num_rows = n())
+```
+
+Can check that this is correct via filtering.  
+
+```{r, iris_count_3}
+iris %>% 
+  filter(Species == 'setosa') %>% 
+  nrow()
+```
+
+```{r, iris_count_4}
+iris %>% 
+  filter(Species == 'versicolor') %>% 
+  nrow()
+```
+
+```{r, iris_count_4_b}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(num_rows = purrr::map_dbl(data, nrow))
+```
+
+A bar graph or bar chart is useful to display counts, the taller the bar the more counts!  
+
+```{r, iris_bar_1}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Let's make the bar chart ourselves rather than relying on the the counting behind the scenes. To use `geom_bar()` after grouping and summarizing, therefore having the counts per level we must force `stat = 'identity'`.  
+
+```{r, iris_bar_2}
+iris %>% 
+  count(Species) %>% 
+  ggplot(mapping = aes(x = Species, y = n)) +
+  geom_bar(stat = 'identity') +
+  theme_bw()
+```
+
+Alternatively, we can use the `geom_col()` which does **not** perform statistical transformations.  
+
+```{r, iris_bar_3}
+iris %>% 
+  count(Species) %>% 
+  ggplot(mapping = aes(x = Species, y = n)) +
+  geom_col() +
+  theme_bw()
+```
+
+One last way to create a bar chart is with `stat_count()` directly where we force the `geom` to be `'bar'`.  
+
+```{r, iris_bar_4}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  stat_count(geom = 'bar') +
+  theme_bw()
+```
+
+Include the count or the number of rows as text on top of the bars. We can instruct `geom_text()` to perform a statistical transformation and thus COUNT the number of rows.  
+
+```{r, iris_bar_5}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar() +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count))) +
+  theme_bw()
+```
+
+We can manually "nudge" the position of the text.  
+
+```{r, iris_bar_6}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar() +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            nudge_y = 2.5, color = 'red', size = 7.5) +
+  theme_bw()
+```
+
+We could "nudge" below the bar.  
+
+```{r, iris_bar_7}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar() +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            nudge_y = -2.5, color = 'white', size = 7.5) +
+  theme_bw()
+```
+
+We can also map Species to the fill of the bar.  
+
+```{r, iris_bar_8}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar(mapping = aes(fill = Species)) +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            nudge_y = 2.5, color = 'red', size = 7.5) +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+We can turn off the legend since the x-axis is the fill.  
+
+```{r, iris_bar_9}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar(mapping = aes(fill = Species)) +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            nudge_y = 2.5, color = 'red', size = 7.5) +
+  ggthemes::scale_fill_colorblind(guide=FALSE) +
+  theme_bw()
+```
+
+Difference between fill and color.  
+
+```{r, iris_bar_10}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar(mapping = aes(color = Species), size = 5.5) +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            nudge_y = 2.5, color = 'red', size = 7.5) +
+  ggthemes::scale_color_colorblind(guide=FALSE) +
+  theme_bw()
+```
+
+Let's create a binary variable based on the value `Sepal.Length` relative to the average `Sepal.Length`.  
+
+```{r, calc_length_avg_1}
+mean(iris$Sepal.Length)
+```
+
+```{r, calc_length_avg_2}
+iris %>% summarise(mean(Sepal.Length))
+```
+
+Check the number of rows where `Sepal.Length` is greater than the average value.  
+
+```{r, check_num_rows_length}
+iris %>% 
+  filter(Sepal.Length > mean(Sepal.Length)) %>% 
+  nrow()
+```
+
+Let's visualize this as a bar chart.  
+
+```{r, iris_length_bar_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar() +
+  theme_bw()
+```
+
+How many rows per group have the `Sepal.Length` greater than the overall average?  
+
+```{r, iris_length_groups_check}
+iris %>% 
+  mutate(length_bin = Sepal.Length > mean(Sepal.Length)) %>% 
+  count(Species, length_bin)
+```
+
+Visualize the counts with a bar chart.  
+
+```{r, iris_bar_11}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar(mapping = aes(fill = Species)) +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+
+I prefer to rearrange the fill into **separate** and **distinct** bars that are next to each other. In `ggplot2` this is known as **dodging** the position.  
+
+```{r, iris_bar_12}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar(mapping = aes(fill = Species),
+           position = "dodge") +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+
+We can also include the text for the counts. The `geom_text()` does **NOT** know the grouping structure.  
+
+```{r, iris_bar_13}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar(mapping = aes(fill = Species),
+           position = "dodge") +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count))) +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+We can override or instruct how to group the text via the `group` aesthetic.  
+
+```{r, iris_bar_14}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar(mapping = aes(fill = Species),
+           position = "dodge") +
+  geom_text(stat = 'count',
+            mapping = aes(group = Species,
+                          label = stat(count))) +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+Adjusting the text position is painful.  
+
+```{r, iris_bar_15}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length))) +
+  geom_bar(mapping = aes(fill = Species),
+           position = "dodge") +
+  geom_text(stat = 'count',
+            mapping = aes(group = Species,
+                          label = stat(count)),
+            position = position_dodge(0.75),
+            color = 'red', size = 7) +
+  ggthemes::scale_fill_colorblind() +
+  theme_bw()
+```
+
+
+Let's set the x-axis back to Species and the fill to the conditional test.  
+
+```{r, iris_bar_16}
+iris %>% 
+  ggplot(mapping = aes(x = Species)) +
+  geom_bar(mapping = aes(fill = Sepal.Length > mean(Sepal.Length)),
+           position = "dodge") +
+  ggthemes::scale_fill_calc() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Essentially we are using the bar fill to denote the number of rows per **combination**. Combinations can also be displayed via heat maps.  
+
+A heat map is essentially a scatter plot. It consists of x position and y position BUT instead of points we will use a TILE.  
+
+```{r, iris_heatmap_1}
+iris %>% 
+  count(Species, Sepal.Length > mean(Sepal.Length)) %>% 
+  ggplot(mapping = aes(x = `Sepal.Length > mean(Sepal.Length)`,
+                       y = Species)) +
+  geom_tile(color = 'black', fill = 'grey') +
+  theme_bw()
+```
+
+Map the number of observations to the fill of the tile.  
+
+```{r, iris_heatmap_2}
+iris %>% 
+  count(Species, Sepal.Length > mean(Sepal.Length)) %>% 
+  ggplot(mapping = aes(x = `Sepal.Length > mean(Sepal.Length)`,
+                       y = Species)) +
+  geom_tile(color = 'black', 
+            mapping = aes(fill = n)) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Add text to show the number of rows by mapping the `geom_text()` label to `n`.  
+
+```{r, iris_heatmap_3}
+iris %>% 
+  count(Species, Sepal.Length > mean(Sepal.Length)) %>% 
+  ggplot(mapping = aes(x = `Sepal.Length > mean(Sepal.Length)`,
+                       y = Species)) +
+  geom_tile(color = 'black', 
+            mapping = aes(fill = n)) +
+  geom_text(mapping = aes(label = n), size = 8) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Lastly, map the text color to change with the number of rows.  
+
+```{r, iris_heatmap_4}
+iris %>% 
+  count(Species, Sepal.Length > mean(Sepal.Length)) %>% 
+  ggplot(mapping = aes(x = `Sepal.Length > mean(Sepal.Length)`,
+                       y = Species)) +
+  geom_tile(color = 'black', 
+            mapping = aes(fill = n)) +
+  geom_text(mapping = aes(label = n,
+                          color = n > median(n)), 
+            size = 8) +
+  scale_fill_viridis_c(guide = FALSE) +
+  scale_color_manual(guide = FALSE,
+                     values = c("TRUE" = 'black',
+                                "FALSE" = "white")) +
+  theme_bw()
+```
+
+
+We could show this information with points and sizes of points.  
+
+```{r, iris_count_map_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length > mean(Sepal.Length),
+                       y = Species)) +
+  geom_count() +
+  theme_bw()
+```
+
+
