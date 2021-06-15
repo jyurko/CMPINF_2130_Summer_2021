@@ -40,4 +40,5 @@ In-class programming examples are light on comments and discussion text. Please 
 * Bar charts with proportions
 * Lumping low frequency values of categorical variables
 * Histograms vs density plots for continuous variables
+* Review of quantiles
 * Introduction to eCDF
