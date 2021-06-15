@@ -26,3 +26,18 @@ In-class programming examples are light on comments and discussion text. Please 
 * Facets (subplots) in ggplot2 vs Seaborn
 * Introduction to text, line, path, and smooth in ggplot2
 * Optional: creating hockey shot maps using Penguins/Islanders playoff game shot data
+
+## Week 04
+* Group specific trend lines and the group aesthetic in ggplot2
+* Group specific trend lines in Seaborn with sns.lmplot()
+* Introduction to statistical transformations via counts
+* Bar charts in ggplot2 and Seaborn
+* Combinations of categorical variables with fill
+* Heat maps for combinations of categorical variables
+
+## Week 05
+* Bar charts ordered by ascending/descending counts
+* Bar charts with proportions
+* Lumping low frequency values of categorical variables
+* Histograms vs density plots for continuous variables
+* Introduction to eCDF
