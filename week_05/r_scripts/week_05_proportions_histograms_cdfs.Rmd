@@ -1,0 +1,784 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 05"
+author: "Dr. Joseph P. Yurko"
+date: "6/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+## Review bar chart
+
+Use the `mpg` data set for counts instead of `iris`.  
+
+```{r, glimpse_mpg}
+mpg %>% glimpse()
+```
+
+The number of observations for each unique value of `class` in `mpg`.  
+
+```{r, class_bar_chart}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Reorder the x-axis.  
+
+The character gets converted to a factor variable behind the scenes. A factor is R's terminology for a categorical.  
+
+```{r, check_class_factor}
+mpg %>% 
+  mutate(class = as.factor(class)) %>%
+  select(class)
+```
+
+
+Let's print the factor to the screen.  
+
+```{r, check_class_factor_2}
+mpg %>% 
+  mutate(class = as.factor(class)) %>% 
+  select(class) %>% 
+  pull()
+```
+
+
+We can use the `levels()` function to extract the finite set of levels or values the factor can take.  
+
+```{r, check_class_factor_levels}
+mpg %>% 
+  mutate(class = as.factor(class)) %>% 
+  select(class) %>% 
+  pull() %>% 
+  levels()
+```
+
+We can manually override the order by specyfing the levels.  
+
+```{r, relevel_the_class_variable}
+mpg %>% 
+  mutate(class = factor(class, levels = c("suv", "subcompact", "pickup",
+                                          "2seater",
+                                          "minivan", "midsize", 'compact'))) %>% 
+  select(class) %>% 
+  pull() %>% 
+  levels()
+```
+
+
+The level order dictates the order of the x-axis in the bar chart.  
+
+```{r, our_new_class_level_order_bar}
+mpg %>% 
+  mutate(class = factor(class, levels = c("suv", "subcompact", "pickup",
+                                          "2seater",
+                                          "minivan", "midsize", 'compact'))) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+What if we want to order by count?  
+
+Let's first check by chaining `count()` and `arrange()`.  
+
+```{r, check_class_count_order}
+mpg %>% 
+  count(class) %>% 
+  arrange(n)
+```
+
+Extract out the `class` column from the summarized data set.  
+
+```{r, grab_the_class_orders}
+class_ascend_order <- mpg %>% 
+  count(class) %>% 
+  arrange(n) %>% 
+  select(class) %>% 
+  pull()
+```
+
+Now we can order the x-axis based on ascending counts.  
+
+```{r, mpg_class_bar_ascend}
+mpg %>% 
+  mutate(class = factor(class, levels = class_ascend_order)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+[forcats](https://forcats.tidyverse.org/) streamlines manipulating categorical variables.  
+
+```{r, check_the_count_order_forcats}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  select(class) %>% 
+  pull() %>% 
+  levels()
+```
+
+
+Visualize the counts as a bar chart using the forcats ordering.  
+
+```{r, class_bar_forcats}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+We can reverse the order showing lowest count to highest. Manually call the reverse order function.  
+
+```{r, class_bar_forcats_2}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  mutate(class = forcats::fct_rev(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+We can also include the count as text.  
+
+```{r, class_bar_forcats_3}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  mutate(class = forcats::fct_rev(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  geom_text(stat = 'count',
+            mapping = aes(label = stat(count)),
+            color = 'red', nudge_y = 2, size = 5.5) +
+  theme_bw()
+```
+
+### Lumping
+
+forcats has a dedicated set of functions to perform the "lumping" for us.  
+
+```{r, lump_class_var}
+mpg %>% 
+  mutate(class = forcats::fct_lump_min(class, 15)) %>% 
+  count(class)
+```
+
+Let's now look at a bar chart which includes the lumped "Other" variable.  
+
+```{r, lump_class_bar}
+mpg %>% 
+  mutate(class = forcats::fct_lump_min(class, 15)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Let's reorder by the count.  
+
+```{r, lump_class_bar_2}
+mpg %>% 
+  mutate(class = forcats::fct_lump_min(class, 15)) %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+We can rename the "Other" level.  
+
+```{r, lump_class_bar_3}
+mpg %>% 
+  mutate(class = forcats::fct_lump_min(class, 15, other_level = "The other level")) %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Lumping based on less than 15 observations does not scale to larger or smaller data sets. Instead we should consider the **proportion**.  
+
+Let's manually calculate the proportion of each value.  
+
+```{r, mpg_class_prop}
+mpg %>% 
+  count(class) %>% 
+  mutate(prop_value = n / sum(n)) %>% 
+  arrange( desc(prop_value) )
+```
+
+Check the proportions.  
+
+```{r, check_prop_value}
+62 / nrow(mpg)
+```
+
+
+Let's now visualize the levels as proportions instead of counts. Let's first use `geom_col()`.  
+
+```{r, mpg_class_prop_col}
+mpg %>% 
+  count(class) %>% 
+  mutate(prop_value = n / sum(n)) %>% 
+  arrange( desc(prop_value) ) %>% 
+  ggplot(mapping = aes(x = class, y = prop_value)) +
+  geom_col() +
+  theme_bw()
+```
+
+Reorder the levels.  
+
+```{r, mpg_class_prop_col_2}
+mpg %>% 
+  count(class) %>% 
+  mutate(prop_value = n / sum(n)) %>% 
+  arrange( desc(prop_value) ) %>% 
+  mutate(class = forcats::fct_inorder(class)) %>% 
+  ggplot(mapping = aes(x = class, y = prop_value)) +
+  geom_col() +
+  theme_bw()
+```
+
+If you want the percent, just multiply by 100.  
+
+```{r, mpg_class_prop_col_3}
+mpg %>% 
+  count(class) %>% 
+  mutate(prop_value = n / sum(n)) %>% 
+  arrange( desc(prop_value) ) %>% 
+  mutate(class = forcats::fct_inorder(class)) %>% 
+  ggplot(mapping = aes(x = class, y = 100 * prop_value)) +
+  geom_col() +
+  theme_bw()
+```
+
+If we multiply outside of ggplot.  
+
+```{r, mpg_class_prop_col_4}
+mpg %>% 
+  count(class) %>% 
+  mutate(prop_value = n / sum(n)) %>% 
+  arrange( desc(prop_value) ) %>% 
+  mutate(class = forcats::fct_inorder(class)) %>% 
+  mutate(prop_value = 100 * prop_value) %>% 
+  ggplot(mapping = aes(x = class, y = prop_value)) +
+  geom_col() +
+  # manually override the axis labels
+  labs(y = "percent") +
+  theme_bw()
+```
+
+Ideally, we want ggplot2 to show us the proportions from the original or raw data set. We have to make use of the `stat()` function again.  
+
+```{r, mpg_class_prop_viz}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(y = stat(prop))) +
+  theme_bw()
+```
+
+To override the grouping and visualize the proportion relative to the WHOLE data set we must specify `group = 1` in aes().  
+
+```{r, mpg_class_prop_correct}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(y = stat(prop),
+                         group = 1)) +
+  theme_bw()
+```
+
+We can reorder the level as needed.  
+
+```{r, mpg_class_prop_correct_2}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(y = stat(prop),
+                         group = 1)) +
+  theme_bw()
+```
+
+We can also display the proportion as text.  
+
+```{r, mpg_class_prop_with_text}
+mpg %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(y = stat(prop),
+                         group = 1)) +
+  geom_text(stat = 'count',
+            mapping = aes(y = after_stat( count / sum(count)),
+                          label = after_stat( signif(count / sum(count), 3) )),
+            color = 'red', nudge_y = 0.0075, size = 3.5) +
+  theme_bw()
+```
+
+Lump all values or levels of `class` together if they occur less than 5% of the time. Or, the level **proportion** is less than 0.05.  
+
+```{r, mpg_class_prop_text_lump}
+mpg %>% 
+  mutate(class = forcats::fct_lump_prop(class, 0.05)) %>% 
+  mutate(class = forcats::fct_infreq(class)) %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(y = stat(prop),
+                         group = 1)) +
+  geom_text(stat = 'count',
+            mapping = aes(y = after_stat( count / sum(count)),
+                          label = after_stat( signif(count / sum(count), 3) )),
+            color = 'red', nudge_y = 0.0075, size = 3.5) +
+  theme_bw()
+```
+
+
+
+## Combinations
+
+`drv` tells us if the vehicle is 4wheel, front, or rear wheel drive.  
+
+```{r, count_per_drv}
+mpg %>% count(drv)
+```
+
+Let's look at the counts of the combinations of `drv` and `class`.  
+
+```{r, mpg_class_drv_bar}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv)) +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+When we want to know the proportion **within** the x-aesthetic group we only need to specify the position as `'fill'` to know the proportion.  
+
+```{r, mpg_class_drv_bar_prop}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv),
+           position = 'fill') +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+
+Use `labs()` to change the y-axis label.  
+
+```{r, mpg_class_drv_bar_prop_2}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv),
+           position = 'fill') +
+  ggthemes::scale_fill_calc() +
+  labs(y = 'proportion') +
+  theme_bw()
+```
+
+Add a title.  
+
+```{r, mpg_class_drv_bar_prop_3}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv),
+           position = 'fill') +
+  ggthemes::scale_fill_calc() +
+  labs(y = 'proportion',
+       title = 'Proportion of drv within each vehicle class') +
+  theme_bw()
+```
+
+Instead, we might be interested in the proportio of the combination directly.  
+
+```{r, mpg_class_drv_combo_prop}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv,
+                         y = after_stat( count / sum(count) ))) +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+Lastly, we can 'dodge' to help see the individual combination proportions.  
+
+```{r, mpg_class_drv_combo_prop_dodge}
+mpg %>% 
+  ggplot(mapping = aes(x = class)) +
+  geom_bar(mapping = aes(fill = drv,
+                         y = after_stat( count / sum(count) )),
+           position = 'dodge') +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+We can check the counts/proportions.  
+
+```{r, check_the_class_drv_combos}
+mpg %>% 
+  count(class, drv) %>% 
+  mutate(prop_value = n / sum(n))
+```
+
+## Continuous variables
+
+We will start with synthetic data. We will generate 5000 random draws or samples from a **standard normal distribution**.  
+
+**standard** refers to the fact that the **mean** is equal to 0 and the standard deviation is equal 1.  
+
+**z-score** has a mean zero and variance one.  
+
+When generating random numbers it's always import to set the random seed.  
+
+```{r, make_fake_data}
+set.seed(2130)
+x <- rnorm(n = 5000)
+
+x %>% length()
+```
+
+Check the summary statistics with `summary()`.  
+
+```{r, check_x_summary_stats}
+x %>% summary()
+```
+
+Let's put `x` inside a data.frame, or really a tibble.  
+
+```{r, make_fake_tibble}
+xdf <- tibble::tibble(x = x)
+
+xdf %>% glimpse()
+```
+
+As a continuous variable, `x`, does not have a finite set of values. There's essentially an infinite set of possible values.  
+
+```{r, check_number_of_uniques}
+xdf %>% 
+  summarise(n_distinct(x))
+```
+
+We cannot simply use a bar chart for a continuous number!  
+
+```{r, viz_x_as_factor_bar}
+xdf %>% 
+  slice(1:200) %>% 
+  ggplot(mapping = aes(x = as.factor(x))) +
+  geom_bar() +
+  theme_bw() +
+  theme(axis.text.x = element_blank())
+```
+
+Let's print the first 25 values to the screen.  
+
+```{r, check_unique_values_x}
+xdf %>% 
+  count(x) %>% 
+  arrange(x) %>% 
+  head(25)
+```
+
+We can **bin** similar observations together. A histogram is a "bar chart" for continuous variables. A histogram is made by:  
+
+* "breaking" or dividing the *range* into smaller intervals or **bins**  
+* count the number of observations in each bin  
+* display a bar chart to show the counts in each bin  
+
+Let's see what happens if we use the quantiles to divide the space.  
+
+```{r, viz_x_quant_bins}
+xdf %>% 
+  mutate(xbins = cut(x, quantile(x), include.lowest = TRUE)) %>% 
+  ggplot(mapping = aes(x = xbins)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Usually best to use **equal** or **uniform** bin sizes or bin intervals when visualizing histograms. Let's use the `seq()` function to define evenly or uniform interval iszes in bins.  
+
+```{r, viz_x_hist_bar}
+xdf %>% 
+  mutate(xbins = cut(x, 
+                     seq(min(x), max(x), length.out = 5),
+                     include.lowest = TRUE)) %>% 
+  ggplot(mapping = aes(x = xbins)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Use more bins to get better "resolution" of the **distribution** of the variable.  
+
+```{r, viz_x_hist_bar_2}
+xdf %>% 
+  mutate(xbins = cut(x, 
+                     seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  ggplot(mapping = aes(x = xbins)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Use even more bins to get further resolution, but we then have fewer observations in each bin.  
+
+```{r, viz_x_hist_bar_3}
+xdf %>% 
+  mutate(xbins = cut(x, 
+                     seq(min(x), max(x), length.out = 21),
+                     include.lowest = TRUE)) %>% 
+  ggplot(mapping = aes(x = xbins)) +
+  geom_bar() +
+  theme_bw()
+```
+
+We can just use the `geom_histogram()` geom to create the histogram.  
+
+```{r, viz_x_hist}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram() +
+  theme_bw()
+```
+
+I tend to use 50 bins for thousands of observations.  
+
+```{r, viz_x_hist_2}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 50) +
+  theme_bw()
+```
+
+With a few hundred or less I'll use 20 to 25.  
+
+```{r, viz_x_hist_3}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 21) +
+  theme_bw()
+```
+
+Let's use 2000 bins.   
+
+```{r, viz_x_hist_4}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 2000) +
+  theme_bw()
+```
+
+A very small number of bins...might not help either.  
+
+```{r, viz_x_hist_5}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 3) +
+  theme_bw()
+```
+
+We can also decide the number of bins based on the **binwidth**  
+
+```{r, viz_x_hist_6}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5) +
+  theme_bw()
+```
+
+Use the `after_stat()` function to show the proportion per bin.  
+
+```{r, viz_x_hist_prop}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5,
+                 mapping = aes(y = after_stat( count / sum(count) ))) +
+  theme_bw()
+```
+
+Histogram is a representation of the **probability density function** (pdf). We can set the y-axis to the **density** of the bins. Density is calculated such that the integral or area under the curve equals 1.  
+
+```{r, viz_x_hist_density}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5,
+                 mapping = aes(y = stat(density))) +
+  theme_bw()
+```
+
+Instead, we could also represent the distribution with a **kernel density estimate**.  
+
+```{r, viz_x_density}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_density(size = 1.1) +
+  theme_bw()
+```
+
+The **bandwidth** controls how smooth the estimate is. We can control a multiplier to the estimated bandwidth.  
+
+```{r, viz_x_density_2}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_density(size = 1.1,
+               adjust = 0.2) +
+  theme_bw()
+```
+
+```{r, viz_x_density_3}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_density(size = 1.1,
+               adjust = 2) +
+  theme_bw()
+```
+
+We can overlay the density with the histogram by adding two layers together.  
+
+```{r, viz_x_density_and_hist}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5, alpha = 0.7,
+                 fill = 'steelblue') +
+  geom_density(size = 2.5) +
+  theme_bw()
+```
+
+To overlay the two the histogram must be instructed to plot the density.  
+
+```{r, viz_x_density_and_hist_2}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5, alpha = 0.7,
+                 fill = 'steelblue',
+                 mapping = aes(y = stat(density))) +
+  geom_density(size = 2.5) +
+  theme_bw()
+```
+
+Let's go back to what happened with the `quantile()` defined bins. Let's look at the quantile values on the histogram.  
+
+```{r, viz_x_hist_with_ref}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(binwidth = 0.5) +
+  geom_vline(xintercept = quantile(xdf$x),
+             color = 'red', linetype = 'dashed', size = 1.15) +
+  theme_bw()
+```
+
+Let's look at the `quantile()` result.  
+
+```{r, check_quantile_x}
+xdf %>% pull(x) %>% quantile()
+```
+
+
+The sister plot to the histogram or density is the CDF - the cumulative distribution function.  
+
+```{r, viz_x_cdf}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  stat_ecdf(size = 1.1) +
+  theme_bw()
+```
+
+Let's roughly calculate the CDF through our manual binning of the `x` values.  
+
+```{r, check_cdf_calc_1}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  count(xbins)
+```
+
+Let's use `geom_col()` to make this bar chart.  
+
+```{r, viz_hist_geom_col}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  count(xbins) %>% 
+  ggplot(mapping = aes(x = xbins, y = n)) +
+  geom_col() +
+  theme_bw()
+```
+
+Calculate the cumulative or rolling sum.  
+
+```{r, check_cdf_calc_2}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  count(xbins) %>% 
+  mutate(rolling_sum = cumsum(n))
+```
+
+Visualize our cumulative sum.  
+
+```{r, viz_check_cdf}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  count(xbins) %>% 
+  mutate(rolling_sum = cumsum(n)) %>% 
+  ggplot(mapping = aes(x = xbins, y = rolling_sum)) +
+  geom_col() +
+  theme_bw()
+```
+
+We want the rolling or cumulative proportion.  
+
+```{r, viz_check_cdf_prop}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = seq(min(x), max(x), length.out = 11),
+                     include.lowest = TRUE)) %>% 
+  count(xbins) %>% 
+  mutate(rolling_sum = cumsum(n)) %>% 
+  mutate(rolling_prop = rolling_sum / sum(n)) %>% 
+  ggplot(mapping = aes(x = xbins, y = rolling_prop)) +
+  geom_col() +
+  theme_bw()
+```
+
+Let's see what happens if we have fewer observations.  
+
+```{r, viz_x_cdf_small}
+xdf %>% 
+  slice(1:35) %>% 
+  ggplot(mapping = aes(x = x)) +
+  stat_ecdf(size = 1.1) +
+  theme_bw()
+```
+
+Make the small data set.  
+
+```{r, make_x_small}
+xsmall <- xdf %>% 
+  slice(1:35)
+```
+
+
+Look at the CDF for the small data set with specific quantiles called out.  
+
+```{r, viz_x_cdf_small_with_quants}
+xsmall %>% 
+  ggplot(mapping = aes(x = x)) +
+  stat_ecdf(size = 1.25) +
+  geom_hline(yintercept = c(0, 0.25, 0.5, 0.75, 1),
+             color = 'purple', size = 1.1) +
+  geom_vline(xintercept = quantile(xsmall$x),
+             color = 'red', linetype = 'dashed', size = 1.2) +
+  theme_bw()
+```
+
