@@ -30,6 +30,9 @@ In-class programming examples are light on comments and discussion text. Please 
 ## Week 04
 * Group specific trend lines and the group aesthetic in ggplot2
 * Group specific trend lines in Seaborn with sns.lmplot()
+* continuous and discrete color palettes in Seaborn
+* tidyverse group_by() %>% summarize() pipelines
+* Pandas groupby().aggregate() chains 
 * Introduction to statistical transformations via counts
 * Bar charts in ggplot2 and Seaborn
 * Combinations of categorical variables with fill
