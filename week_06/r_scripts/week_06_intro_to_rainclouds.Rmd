@@ -1,0 +1,707 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 06"
+subtitle: "continue with continuous variables"
+author: "Dr. Joseph P. Yurko"
+date: "6/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load packages
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+## Synthetic data
+
+```{r, make_fake_data}
+set.seed(2130)
+
+x <- rnorm(n = 5000)
+
+xdf <- tibble::tibble(x = x)
+
+xdf %>% glimpse()
+```
+
+
+Histogram  
+
+```{r, make_gauss_hist}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 11) +
+  theme_bw()
+```
+
+Histogram with a kernel density estimate (kde) plot.  
+
+```{r, make_gauss_hist_kde}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 11,
+                 mapping = aes(y = stat(density)),
+                 fill = 'steelblue', alpha = 0.55) +
+  geom_density(size = 1.25, adjust = 3) +
+  theme_bw()
+```
+
+Alternatively, instead of using "bars" or filled-in-areas for the histogram we could use the **frequency polygon**.  
+
+```{r, make_gauss_freqpoly}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 20,
+                 alpha = 0.7) +
+  geom_freqpoly(bins = 20,
+                size = 1.2) +
+  theme_bw()
+```
+
+Overlay a histogram, frequency polygon, and kernel density estimate.  
+
+```{r, make_gauss_freqpoly_kde}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_histogram(bins = 51,
+                 alpha = 0.7,
+                 mapping = aes(y = stat(density))) +
+  geom_freqpoly(bins = 51,
+                size = 1.2,
+                mapping = aes(y = stat(density))) +
+  geom_density(size = 1.25, linetype = 'dashed',
+               color = 'darkorange') +
+  theme_bw()
+```
+
+To include the observations with a histogram is via a **rug plot**. Let's first look at the rug by itself.  
+
+```{r, viz_rug_plot_gauss}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_rug() +
+  theme_bw()
+```
+
+Can be useful to set the transparency so we can see the difference between low and high density regions more clearly.  
+
+```{r, viz_rug_plot_gauss_2}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_rug(alpha = 0.2) +
+  theme_bw()
+```
+
+Add in a histogram to provide additional context to the distributional shape.  
+
+```{r, viz_hist_rug_1}
+xdf %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_rug(alpha = 0.2) +
+  geom_histogram(bins = 35) +
+  theme_bw()
+```
+
+One benefit of a rug + histogram is when we have relatively few bins and relatively few data points. 
+
+```{r, vis_hist_rug_small}
+xdf %>% 
+  slice(1:101) %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_rug(color = 'red') +
+  geom_histogram(bins = 10) +
+  theme_bw()
+```
+
+The rug can help interpret the eCDF plot as well.  
+
+```{r, viz_ecdf_rug_small}
+xdf %>% 
+  slice(1:101) %>% 
+  ggplot(mapping = aes(x = x)) +
+  geom_rug(color = 'red') +
+  stat_ecdf(size = 1.25) +
+  theme_bw()
+```
+
+## mpg data
+
+```{r, mpg_glimpse}
+mpg %>% glimpse()
+```
+
+Visualize the distribution of `hwy` with a histogram and let's include the rug.  
+
+```{r, hwy_hist_rug_1}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug() +
+  geom_histogram(bins = 25) +
+  theme_bw()
+```
+
+
+Can use binwidth instead.  
+
+```{r, hwy_hist_rug_2}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug() +
+  geom_histogram(binwidth = 3) +
+  theme_bw()
+```
+
+One way to check the number of unique values, is with the `count()`.  
+
+```{r, check_counts_hwy}
+mpg %>% count(hwy)
+```
+
+
+Alternatively we could use the `distinct()` function to only get the unique values.  
+
+```{r, check_distinct_hwy}
+mpg %>% distinct(hwy)
+```
+
+
+Use the base R `unique()` function.  
+
+```{r, check_unique_hwy}
+unique( mpg$hwy )
+```
+
+Can wrap `length()` around `unique()` to get the number of unique.  
+
+```{r, length_unique_check_hwy}
+length( unique( mpg$hwy ) )
+```
+
+The tidy way of executing these steps:  
+
+```{r, check_nunique_dplyr_hwy}
+mpg %>% select(hwy) %>% pull() %>% unique() %>% length()
+```
+
+`n_distinct()` function is a wrapper to `length( unique(x) )`.  
+
+```{r, check_n_distinct_hwy}
+mpg %>% pull(hwy) %>% n_distinct()
+```
+
+We want to use a for-loop to iterate over every column in `mpg` and apply the `n_distinct()` function to each column.  
+
+```{r, check_n_distinct_with_for_loop}
+for( vname in names(mpg) )
+{
+  mpg %>% select(all_of(vname)) %>% 
+    pull() %>% 
+    n_distinct() %>% 
+    print()
+}
+```
+
+Let's assign the result to an element in a list. We must first create a list that contains missing or NULL values.  
+
+```{r, make_our_initial_list}
+list_nunique <- vector( mode = 'list', length = ncol(mpg) )
+
+list_nunique
+```
+
+Assign the names of the elements of the list as the names of the columns.  
+
+```{r, make_list_names_assign}
+names( list_nunique ) <- names(mpg)
+
+list_nunique
+```
+
+We can assign the result of `n_distinct()` to each element in the list.  
+
+```{r, run_for_loop_n_distinct}
+for( vname in names(list_nunique) )
+{
+  list_nunique[[vname]] <- mpg %>% 
+    select(all_of(vname)) %>% 
+    pull() %>% 
+    n_distinct()
+}
+```
+
+Check.  
+
+```{r, show_the_n_distinct_per_column}
+list_nunique
+```
+
+R is more **functional programming** compared to Python. We want to iterate over the elements of the object -- the columns in our dataframe.  
+
+Base R has a family of "apply" functions. I don't use the base R unless I have to.  
+
+`tidyverse` has the `purrr` package to handle "mapping" a function to every element in an object.  
+
+```{r, map_n_disticnt_mpg}
+purrr::map( mpg, n_distinct )
+```
+
+The `purrr::map()` function returns a list.  
+
+```{r, check_return_datatype}
+purrr::map( mpg, n_distinct ) %>% class()
+```
+
+
+We can use the `map_*` functions to specify the data type of returned object.  
+
+```{r, map_dbl_show_hwy}
+mpg %>% purrr::map_dbl(n_distinct)
+```
+
+We could return a character vector.  
+
+```{r, map_chr_show_hwy}
+mpg %>% purrr::map_chr(n_distinct)
+```
+
+Return a data.frame with `map_dfc()`.  
+
+```{r, map_dfc_show_hyw}
+mpg %>% purrr::map_dfc(n_distinct)
+```
+
+To calculate the number of missing values, we can use two functions:  
+
+```{r, check_missing_hwy}
+mpg %>% 
+  select(hwy) %>% 
+  pull() %>% 
+  is.na() %>% 
+  sum()
+```
+
+The "conventional function approach":  
+
+```{r, check_missing_hwy_2}
+sum(is.na( mpg$hwy) )
+```
+
+Use `purrr` to functionally iterate over every column and apply `sum(is.na())`.  
+
+```{r, check_missing_values_mpg}
+mpg %>% 
+  purrr::map_dbl( ~sum(is.na(.)) )
+```
+
+Let's define our own sum function.  
+
+```{r, make_our_sum_function}
+my_sumisna <- function(x)
+{
+  sum( is.na(x) )
+}
+```
+
+
+```{r, check_missing_values_mpg_2}
+mpg %>% purrr::map_dbl( my_sumisna )
+```
+
+`purrr` has useful helper functions for selecting columns by data types.  
+
+To **keep** only numeric columns:  
+
+```{r, check_only_numeric_cols}
+mpg %>% 
+  purrr::keep(is.numeric) %>% 
+  names()
+```
+
+
+To keep all-except numerics or to **discard** numeric columns:  
+
+```{r, check_not_numeric_cols}
+mpg %>% 
+  purrr::discard(is.numeric) %>% 
+  names()
+```
+
+To check the data type per column.  
+
+```{r, check_datatype_column}
+mpg %>% purrr::map_chr( class )
+```
+
+
+Date time data types can mess up the above line of code.  
+
+```{r, check_datatype_column_2}
+mpg %>% purrr::map( class )
+```
+
+## Continuous grouped by a categorical
+
+Or, **condition** a continuous variable on a categorical variable. How does a continuous variable "behave" for different levels of a categorical variable?  
+
+Let's look at the distribution for `hwy` again.  
+
+```{r, viz_hist_hwy_a}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug() +
+  geom_histogram(binwidth = 3) +
+  theme_bw()
+```
+
+Does the distribution of `hwy` change, based on `drv`? We can study this question graphically via aesthetics of the histogram.  
+
+```{r, viz_hist_hwy_drv_color}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_histogram(mapping = aes(color = drv),
+                 binwidth = 3,
+                 size = 2.5) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Usually we map the `fill` of a histogram to a categorical variable.  
+
+```{r, viz_hist_hyw_drv_fill}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_histogram(mapping = aes(fill = drv),
+                 binwidth = 3) +
+  ggthemes::scale_color_calc() +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+We can "dodge" the histogram bars when there is overlap.  
+
+```{r, viz_hist_hwy_drv_fill_dodge}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_histogram(mapping = aes(fill = drv),
+                 binwidth = 3,
+                 position = 'dodge') +
+  ggthemes::scale_color_calc() +
+  ggthemes::scale_fill_calc() +
+  theme_bw()
+```
+
+Instead I prefer to use the `geom_freqpoly()` to handle multiple histograms at once.  
+
+```{r, viz_hist_hwy_drv_poly}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_freqpoly(mapping = aes(color = drv),
+                binwidth = 3,
+                size = 1.15) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+We have very different *sample sizes* across the groups.  
+
+```{r, check_drv_counts}
+mpg %>% count(drv)
+```
+
+Use the density stat to compare histograms when the sample sizes are different across groups.  
+
+```{r, viz_hist_hwy_drv_poly_density}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_freqpoly(mapping = aes(color = drv,
+                              y = stat(density)),
+                binwidth = 3,
+                size = 1.15) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+We had an original "ungrouped" distribution and we can compare that shape to the grouped or **conditional** distributions.  
+
+```{r, viz_hist_hwy_cond_dist_1}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_freqpoly(mapping = aes(y = stat(density)),
+                color = 'black', size = 2.25, alpha = 0.7,
+                binwidth = 3) +
+  geom_freqpoly(mapping = aes(color = drv,
+                              y = stat(density)),
+                binwidth = 3,
+                size = 1.15) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Alternatively, we can use kernel density estimate.  
+
+```{r, viz_dens_hwy_cond_dist_1}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  geom_density(color = 'black', size = 2.25, alpha = 0.7) +
+  geom_density(mapping = aes(color = drv),
+               size = 1.1) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+We can reach the same conclusion by working the eCDF. Let's first look at the eCDF of `hwy`.  
+
+```{r, viz_hwy_cdf}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug() +
+  stat_ecdf(size = 1.2) +
+  theme_bw()
+```
+
+"Break up", "drill down", or **condition** the `hwy` eCDF on the value of `drv`.  
+
+```{r, viz_hwy_cdf_drv}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  stat_ecdf(size = 1.2,
+            mapping = aes(color = drv)) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Include the marginal CDF as well.  
+
+```{r, viz_hwy_cdf_drv_2}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  stat_ecdf(color = 'black', size = 2, alpha = 0.7) +
+  stat_ecdf(size = 1.2,
+            mapping = aes(color = drv)) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+We can directly compare **quantiles** across the conditional groups.  
+
+For example, to compare the median values.  
+
+```{r, viz_hwy_cdf_drv_3}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  stat_ecdf(color = 'black', size = 2, alpha = 0.7) +
+  stat_ecdf(size = 1.2,
+            mapping = aes(color = drv)) +
+  geom_hline(yintercept = 0.5,
+             color = 'magenta', size = 1.1) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Or the 75th quantile.  
+
+```{r, viz_hwy_cdf_drv_4}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  stat_ecdf(color = 'black', size = 2, alpha = 0.7) +
+  stat_ecdf(size = 1.2,
+            mapping = aes(color = drv)) +
+  geom_hline(yintercept = c(0.5, 0.75),
+             linetype = 'dashed',
+             color = 'magenta', size = 1.1) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Useful to consider the 25th, median, and 75th quantiles.  
+
+```{r, viz_hwy_cdf_drv_5}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_rug(mapping = aes(color = drv)) +
+  stat_ecdf(color = 'black', size = 2, alpha = 0.7) +
+  stat_ecdf(size = 1.2,
+            mapping = aes(color = drv)) +
+  geom_hline(yintercept = c(0.25, 0.5, 0.75),
+             linetype = 'dashed',
+             color = 'magenta', size = 1.1) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+
+## Quantiles and Boxplots
+
+We can compute them with a `group_by()` and `summarize()` pipepline.  
+
+```{r, calc_hwy_quants}
+mpg %>% 
+  group_by(drv) %>% 
+  summarise(num_rows = n(),
+            q25_hwy = quantile(hwy, 0.25),
+            q50_hwy = median(hwy),
+            q75_hwy = quantile(hwy, 0.75)) %>% 
+  ungroup()
+```
+
+The box of a boxplot denotes the 25th, median, and 75th quantiles.  
+
+```{r, hwy_box_drv}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_boxplot() +
+  theme_bw()
+```
+
+The R4DS book describes the boxplot [here](https://r4ds.had.co.nz/exploratory-data-analysis.html#cat-cont).  
+
+A downside of the basic boxplot is we don't have an idea of the sample size. A useful convention is to have the width of the box vary by the sample size per group.  
+
+```{r, hwy_box_drv_2}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_boxplot(varwidth = TRUE) +
+  theme_bw()
+```
+
+Reorder the levels.  
+
+```{r, hwy_box_drv_2_2}
+mpg %>% 
+  mutate(drv = forcats::fct_infreq(drv)) %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_boxplot(varwidth = TRUE) +
+  theme_bw()
+```
+
+
+But we can include an additional grouping variable via other aesthetics of the boxplot.  
+
+```{r, check_count_cyl}
+mpg %>% count(drv, cyl)
+```
+
+Map the `cyl` to the `fill` and `color` of the boxplot.  
+
+```{r, hwy_drv_cyl_box}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_boxplot(mapping = aes(fill = as.factor(cyl),
+                             color = as.factor(cyl)),
+               alpha = 0.35,
+               varwidth = TRUE) +
+  ggthemes::scale_color_excel_new() +
+  ggthemes::scale_fill_excel_new() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+The more you drill down the smaller the sample sizes become...  
+
+```{r, hwy_drv_cyl_manu_box}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_boxplot(mapping = aes(fill = as.factor(cyl),
+                             color = as.factor(cyl)),
+               alpha = 0.35,
+               varwidth = TRUE) +
+  facet_wrap(~class) +
+  ggthemes::scale_color_excel_new() +
+  ggthemes::scale_fill_excel_new() +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+The boxplot does not tell us **anything** about the shape of the distribution.  
+
+To overcome these limitations we can combine a special kind of scatter plot known as a **stripplot** or **beeswarm plot** with a **violin plot** and the boxplot.  
+
+```{r, hwy_drv_scatter}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_point(alpha = 0.2, size = 3) +
+  theme_bw()
+```
+
+Adding random **jitter** can help distinguish individual markers.  
+
+```{r, hwy_drv_jitter}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3,
+              height = 0, width = 0.2) +
+  theme_bw()
+```
+
+
+Useful to show the boxplot to help summarize important statistics.  
+
+```{r, hwy_drv_strip_box}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3,
+              height = 0, width = 0.2) +
+  geom_boxplot(fill = NA,
+               mapping = aes(color = drv),
+               size = 1.15,
+               outlier.shape = NA) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+Overlay the density estimate via a **violin** plot.  
+
+```{r, hwy_drv_strip_violin}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3,
+              height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_bw()
+```
+
+
+Add in the density and the boxplot on top of the strip plot.  
+
+```{r, hwy_drv_rain_cloud}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3,
+              height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA,
+               outlier.shape = NA) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+We created by hand the rain cloud plot! There are multiple useful extension packages which can streamline the creation of this plot and make it cleaner, prettier, and easier to look at. Please see the following links for those extensions if you are interested:  
+
+[rain cloud plots in ggplot2](https://z3tt.github.io/Rainclouds/)  
+
+[rain clouds useful discussion on box and violin limitations](https://www.cedricscherer.com/2021/06/06/visualizing-distributions-with-raincloud-plots-with-ggplot2/)  
+
+The second link in particular has useful discussion around the limitations of boxplots and violin plots and how combining them in a coherent way can help overcome those limitations.  
+
+
