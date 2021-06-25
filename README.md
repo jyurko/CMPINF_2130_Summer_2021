@@ -45,3 +45,11 @@ In-class programming examples are light on comments and discussion text. Please 
 * Histograms vs density plots for continuous variables
 * Review of quantiles
 * Introduction to eCDF
+
+## Week 06
+* Review histograms and density plots via rug and frequency polygons  
+* Introduced functional programming concepts via purrr::map()  
+* Continuous variable distributions grouped by categorical variables  
+* Continuous variable summary statistics grouped by categorical variables - BOXPLOTS!  
+* Boxplots vs violin plots, stripplots vs beeswarm splots  
+* Introduction to rain cloud plots  
