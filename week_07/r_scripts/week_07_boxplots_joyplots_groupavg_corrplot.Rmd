@@ -1,0 +1,868 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 07"
+author: "Dr. Joseph P. Yurko"
+date: "6/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load tidyverse
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+## Boxplot review
+
+Work with the synthetic from a standard normal.  
+
+```{r, make_fake_data}
+set.seed(2130)
+
+x <- rnorm(n = 5000)
+
+xdf <- tibble::tibble(x = x)
+
+xdf %>% glimpse()
+```
+
+Make a boxplot.  
+
+```{r, viz_fake_data_box}
+xdf %>% 
+  ggplot(mapping = aes(y = x)) +
+  geom_boxplot() +
+  scale_x_discrete() +
+  theme_bw()
+```
+
+Calculate the whisker length above and below the box.  
+
+```{r, fake_data_whiskers}
+xdf %>% 
+  summarise(q25 = quantile(x, 0.25),
+            q50 = median(x),
+            q75 = quantile(x, 0.75)) %>% 
+  mutate(whisker_low = q25 - 1.5 * (q75 - q25),
+         whisker_high = q75 + 1.5 * (q75 - q25))
+```
+
+Let's visualize these components with `geom_linerange()`.  
+
+```{r, viz_manual_boxplot}
+xdf %>% 
+  summarise(q25 = quantile(x, 0.25),
+            q50 = median(x),
+            q75 = quantile(x, 0.75)) %>% 
+  mutate(whisker_low = q25 - 1.5 * (q75 - q25),
+         whisker_high = q75 + 1.5 * (q75 - q25)) %>% 
+  mutate(var_name = 'x') %>% 
+  ggplot(mapping = aes(x = var_name)) +
+  geom_linerange(mapping = aes(ymin = whisker_low,
+                               ymax = whisker_high),
+                 color = 'black', size = 1.1) +
+  geom_linerange(mapping = aes(ymin = q25, ymax = q75),
+                 color = 'grey', size = 9) +
+  geom_point(mapping = aes(y = q50),
+             shape = 3, color = 'black', size = 5.5) +
+  labs(y = "variable value") +
+  theme_bw()
+```
+
+Create variables for the whisker low and high points.  
+
+```{r, make_whisker_variables}
+gauss_whisker_low <- xdf %>% 
+  summarise(q25 = quantile(x, 0.25),
+            q50 = median(x),
+            q75 = quantile(x, 0.75)) %>% 
+  mutate(whisker_low = q25 - 1.5 * (q75 - q25),
+         whisker_high = q75 + 1.5 * (q75 - q25)) %>% 
+  pull(whisker_low)
+
+gauss_whisker_high <- xdf %>% 
+  summarise(q25 = quantile(x, 0.25),
+            q50 = median(x),
+            q75 = quantile(x, 0.75)) %>% 
+  mutate(whisker_low = q25 - 1.5 * (q75 - q25),
+         whisker_high = q75 + 1.5 * (q75 - q25)) %>% 
+  pull(whisker_high)
+
+(gauss_whiskers <- c(gauss_whisker_low, gauss_whisker_high))
+```
+
+Draw the manually calculated whisker endpoints on the boxplot.  
+
+```{r, viz_fake_box_whiskers}
+xdf %>% 
+  ggplot(mapping = aes(y = x)) +
+  geom_boxplot() +
+  geom_hline(yintercept = gauss_whiskers,
+             color = 'red', linetype = 'dashed', size = 1.2) +
+  scale_x_discrete()
+```
+ 
+Why 1.5 times the IQR?  
+
+```{r, check_iqr_multiplier}
+xdf %>% 
+  mutate(xbins = cut(x,
+                     breaks = c(min(x),
+                                gauss_whisker_low,
+                                gauss_whisker_high,
+                                max(x)),
+                     include.lowest = TRUE,
+                     labels = c("low-outliers", "non-outliers", "high-outliers"))) %>% 
+  count(xbins) %>% 
+  mutate(percentage_value = 100 * (n / sum(n)))
+```
+
+## Conditioning on a categorical
+
+Review the `mpg` data set.  
+
+```{r, mpg_glimpse}
+mpg %>% glimpse()
+```
+
+Look at the distribution of `hwy` for each level of `drv`.  
+
+```{r, viz_freqpoly_hwy_drv}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_freqpoly(mapping = aes(color = drv,
+                              y = stat(density)),
+                size = 1.2,
+                binwidth = 3) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Using density plots instead of histograms.  
+
+```{r, viz_hwy_density_drv}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy)) +
+  geom_density(mapping = aes(color = drv),
+               size = 1.2) +
+  ggthemes::scale_color_calc() +
+  theme_bw()
+```
+
+Visualize the different **conditional** distributions with a violin plot.  
+
+```{r, viz_hwy_drv_violin}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_bw()
+```
+
+
+Downside of a violin plot is that we cannot easily see important summary statistics.  
+
+```{r, viz_hwy_drv_violin_box}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+Include the observations via a strip plot to get a sense if the violin density estimate is appropriate.  
+
+```{r, viz_hwy_drv_violin_box_strip}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+### Joy plots (ridge plots)
+
+Please download and install `ggridges` from CRAN.  
+
+```{r, load_ggridges_pkg}
+library(ggridges)
+```
+
+Flip the `x` and `y` aesthetics with ridge-plots compared to box and violin plots.  
+
+```{r, viz_hwy_drv_joy_1}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges() +
+  theme_bw()
+```
+
+We can use the `ggridges` theme.  
+
+```{r, viz_hwy_drv_joy_2}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges() +
+  theme_ridges()
+```
+
+Map the `fill` to the `drv` variable.  
+
+```{r, viz_hwy_drv_joy_3}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Modify the vertical "height" of the densities with the `scale` argument.  
+
+```{r, viz_hwy_drv_joy_4}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      scale = 0.75) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Modify the bandwidth or the smoothing of the density estimate.  
+
+```{r, viz_hwy_drv_joy_5}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Add quantiles to the joy plot.  
+
+```{r, viz_hwy_drv_joy_6}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.,
+                      quantile_lines = TRUE) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Separate fill color for the quartile ranges. To make the following we have to use the underlying `stat_` function.  
+
+```{r, viz_hwy_drv_joy_7}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  stat_density_ridges(geom = "density_ridges_gradient",
+                      mapping = aes(fill = factor(stat(quantile))),
+                      calc_ecdf = TRUE,
+                      quantiles = 4,
+                      quantile_lines = TRUE,
+                      bandwidth = 1.) +
+  scale_fill_viridis_d("Quartiles") +
+  theme_ridges()
+```
+
+We can specify our own set of quantiles if we prefer. Such as the middle 80% interval.  
+
+```{r, viz_hwy_drv_joy_8}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.,
+                      quantile_lines = TRUE,
+                      quantiles = c(0.1, 0.9)) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Fill in the 3 intervals with a manual color scale.  
+
+```{r, viz_hwy_drv_joy_9}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  stat_density_ridges(geom = "density_ridges_gradient",
+                      mapping = aes(fill = factor(stat(quantile))),
+                      calc_ecdf = TRUE,
+                      quantile_lines = TRUE,
+                      quantiles = c(0.1, 0.9),
+                      bandwidth = 1.) +
+  scale_fill_manual("Probability",
+                    values = c("darkred", "grey", "navyblue"),
+                    labels = c("(0, 0.1]", "(0.1, 0.9]", "(0.9, 1]")) +
+  theme_ridges()
+```
+
+To understand if the density is representative of the underlying data, let's include the measruements directly on the graphic.  
+
+```{r, viz_hwy_drv_joy_10}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.,
+                      quantile_lines = TRUE,
+                      jittered_points = TRUE,
+                      rel_min_height = 0.005) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+We can position the markers below the density plot to create the **raincloud** plot.  
+
+```{r, viz_hwy_drv_joy_11}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.,
+                      quantile_lines = TRUE,
+                      jittered_points = TRUE,
+                      rel_min_height = 0.005,
+                      position = 'raincloud') +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+We can modify the points to look more like a rug plot to further help identify high density intervals.  
+
+```{r, viz_hwy_drv_joy_12}
+mpg %>% 
+  ggplot(mapping = aes(x = hwy, y = drv)) +
+  geom_density_ridges(mapping = aes(fill = drv),
+                      alpha = 0.35,
+                      bandwidth = 1.,
+                      quantile_lines = TRUE,
+                      jittered_points = TRUE,
+                      rel_min_height = 0.005,
+                      position = position_points_jitter(width = 0.2, height = 0),
+                      point_shape = "|", point_alpha = 0.3, point_size = 3) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  theme_ridges()
+```
+
+Joy plots are particularly useful when you are comparing how a distribution "evolves" over time.  
+
+```{r, nebraska_temp_glimpse}
+lincoln_weather %>% glimpse()
+```
+
+Look how the average or mean temperature per day distribution evolves over the months.  
+
+```{r, nebraska_temp_viz_1}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = `Mean Temperature [F]`, y = Month)) +
+  geom_density_ridges() +
+  theme_ridges()
+```
+
+Modifying the relative min height can help with the visual sometimes.  
+
+```{r, nebraska_temp_viz_2}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = `Mean Temperature [F]`, y = Month)) +
+  geom_density_ridges(rel_min_height = 0.01) +
+  theme_ridges()
+```
+
+Modify the height to help with the visual.  
+
+```{r, nebraksa_temp_viz_3}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = `Mean Temperature [F]`, y = Month)) +
+  geom_density_ridges(rel_min_height = 0.01, scale=3) +
+  theme_ridges()
+```
+
+Fill the ridge area based on the value on the `x` axis.  
+
+```{r, nebraska_temp_viz_4}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = `Mean Temperature [F]`, y = Month)) +
+  geom_density_ridges_gradient(rel_min_height = 0.01, scale=3,
+                               mapping = aes(fill = stat(x))) +
+  scale_fill_viridis_c("Temp [F]", option = 'plasma') +
+  theme_ridges()
+```
+
+Raincloud for the temperatures.  
+
+```{r, nebraska_temp_viz_5}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = `Mean Temperature [F]`, y = Month)) +
+  geom_density_ridges(rel_min_height = 0.01, scale=3,
+                      jittered_points = TRUE,
+                      position = 'raincloud',
+                      alpha = 0.5) +
+  theme_ridges()
+```
+
+Please see the documentation [ggridges](https://wilkelab.org/ggridges/index.html) and the [vignette](https://cran.r-project.org/web/packages/ggridges/vignettes/gallery.html)  
+
+## Comparing averages across groups
+
+Look at the distribution of `hwy` per `drv`.  
+
+```{r, viz_hwy_drv_violin_box_strip_2b}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+Calculate the group-level averages.  
+
+```{r, calc_hwy_drv_averages}
+mpg %>% 
+  group_by(drv) %>% 
+  summarise(avg_hwy = mean(hwy))
+```
+
+We can override the default or **inherited** data argument from the parent `ggplot()` call. Each geometric layer can have its own data set.  
+
+```{r, viz_avg_hwy_manual}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  # override the data argument
+  geom_point(data = mpg %>% 
+               group_by(drv) %>% 
+               summarise(avg_hwy = mean(hwy)),
+             mapping = aes(y = avg_hwy,
+                           shape = drv),
+             size = 7) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+We can work with the original data and instruct ggplot2 to summarize via `stat_summary()`.  
+
+```{r, viz_avg_hwy_drv_1}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  # summarize the data via stat_summary()
+  stat_summary(geom = 'point',
+               fun = 'mean',
+               mapping = aes(shape = drv),
+               size = 7) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+When showing the group-level averages sometimes it's useful to not show the individual observations.  
+
+```{r, viz_avg_hwy_drv_2}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  # geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  # summarize the data via stat_summary()
+  stat_summary(geom = 'point',
+               fun = 'mean',
+               mapping = aes(shape = drv),
+               size = 7) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+But how confident are we in the average?  
+
+What is the **standard error** on the sample average?  
+
+$$ 
+se = \sqrt{ \frac{Var(x)}{N} }
+$$
+
+Calculate the standard error on the average and calculate the 95% confidence interval on the average.  
+
+```{r, calc_hyw_avg_se}
+mpg %>% 
+  group_by(drv) %>% 
+  summarise(num_rows = n(),
+            avg_hwy = mean(hwy),
+            sd_hwy = sd(hwy)) %>% 
+  ungroup() %>% 
+  mutate(avg_hwy_se = sd_hwy / sqrt(num_rows)) %>% 
+  mutate(avg_hwy_lwr = avg_hwy - 2 * avg_hwy_se,
+         avg_hwy_upr = avg_hwy + 2 * avg_hwy_se) %>% 
+  select(drv, avg_hwy_lwr, avg_hwy, avg_hwy_upr)
+```
+
+We can visualize the sample average and the confidence interval on the sample average with the `geom_pointrange()`.  
+
+```{r, calc_hyw_avg_se_summary}
+drv_group_summary <- mpg %>% 
+  group_by(drv) %>% 
+  summarise(num_rows = n(),
+            avg_hwy = mean(hwy),
+            sd_hwy = sd(hwy)) %>% 
+  ungroup() %>% 
+  mutate(avg_hwy_se = sd_hwy / sqrt(num_rows)) %>% 
+  mutate(avg_hwy_lwr = avg_hwy - 2 * avg_hwy_se,
+         avg_hwy_upr = avg_hwy + 2 * avg_hwy_se)
+```
+
+Let's override the default data argument and manually show the `geom_pointrange()`.  
+
+```{r, viz_hwy_avg_comparison_1}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  # geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  # manually override the data argument
+  geom_pointrange(data = drv_group_summary,
+                  mapping = aes(y = avg_hwy,
+                                ymin = avg_hwy_lwr,
+                                ymax = avg_hwy_upr,
+                                shape = drv),
+                  color = 'black') +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+We can use `stat_summary()` to not only show the sample average, but we can show the confidence interval on the sample average. We must specify a function to apply to the entire data set within `stat_summary()`. By default `stat_summary()` with `fun.data = 'mean_se'` shows the $\pm$1 standard error interval (68% confidence interval) so we must override this.  
+
+```{r, viz_hwy_drv_group_avg_se_2}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  # geom_jitter(alpha = 0.5, size = 3, height = 0, width = 0.2) +
+  geom_violin(mapping = aes(fill = drv),
+              alpha = 0.35) +
+  geom_boxplot(mapping = aes(color = drv),
+               size = 1.15,
+               fill = NA) +
+  stat_summary(fun.data = 'mean_se',
+               mapping = aes(shape = drv),
+               fun.args = list(mult = 2)) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+We can use `stat_summary()` to summarize a data set however we wish.  
+
+```{r, make_a_quantile_function}
+my_quantile_0.1 <- function(x, p=0.1){quantile(x, p)}
+
+my_quantile_0.25 <- function(x, p=0.25){quantile(x, p)}
+
+my_quantile_0.75 <- function(x, p=0.75){quantile(x, p)}
+
+my_quantile_0.9 <- function(x, p=0.9){quantile(x, p)}
+```
+
+Instead of showing a boxplot, use `stat_summary()` to display the middle 50% interval (the box) and display the middle 80% interval.  
+
+```{r, viz_hwy_drv_avg_summary_1}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_violin(mapping = aes(fill = drv), alpha = 0.25) +
+  stat_summary(geom = 'linerange',
+               fun.min = 'min', fun.max = 'max',
+               mapping = aes(group = drv),
+               color = 'grey30', size = 0.75) +
+  stat_summary(geom = 'linerange',
+               fun.min = my_quantile_0.1,
+               fun.max = my_quantile_0.9,
+               mapping = aes(group = drv,
+                             color = drv),
+               size = 2.5) +
+  stat_summary(geom = 'linerange',
+               fun.min = my_quantile_0.25,
+               fun.max = my_quantile_0.75,
+               mapping = aes(group = drv,
+                             color = drv),
+               size = 7.5) +
+  stat_summary(fun.data = "mean_se",
+               color = 'black',
+               fun.args = list(mult = 2)) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+When I make these kind of figures I use an inline function.  
+
+```{r, viz_hwy_drv_avg_summary_2}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  geom_violin(mapping = aes(fill = drv), alpha = 0.25) +
+  stat_summary(geom = 'linerange',
+               fun.min = 'min', fun.max = 'max',
+               mapping = aes(group = drv),
+               color = 'grey30', size = 0.75) +
+  stat_summary(geom = 'linerange',
+               fun.min = function(x){quantile(x, 0.1)},
+               fun.max = function(x){quantile(x, 0.9)},
+               mapping = aes(group = drv,
+                             color = drv),
+               size = 2.5) +
+  stat_summary(geom = 'linerange',
+               fun.min = function(x){quantile(x, 0.25)},
+               fun.max = function(x){quantile(x, 0.75)},
+               mapping = aes(group = drv,
+                             color = drv),
+               size = 7.5) +
+  stat_summary(fun.data = "mean_se",
+               color = 'black',
+               fun.args = list(mult = 2)) +
+  ggthemes::scale_fill_calc(guide = FALSE) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  theme_bw()
+```
+
+If we are only interested in the variation in the group-level averages:  
+
+```{r, viz_hwy_drv_group_avg_3}
+mpg %>% 
+  ggplot(mapping = aes(x = drv, y = hwy)) +
+  stat_summary(fun.data = 'mean_se',
+               mapping = aes(color = drv,
+                             shape = drv),
+               fun.args = list(mult = 2),
+               size = 1.75) +
+  ggthemes::scale_color_calc(guide = FALSE) +
+  scale_shape_discrete(guide = FALSE) +
+  theme_bw()
+```
+
+### T-test for the Nebraska temperature data
+
+```{r, nebraska_avg_temp_t_test_viz_1}
+lincoln_weather %>% 
+  ggplot(mapping = aes(x = Month, y = `Mean Temperature [F]`)) +
+  stat_summary(fun.data = 'mean_se',
+               fun.args = list(mult = 2)) +
+  theme_bw()
+```
+
+Check the order of the levels.  
+
+```{r, check_nebraska_levels_months}
+lincoln_weather %>% 
+  pull(Month) %>% 
+  levels()
+```
+
+We can reverse the level order with `forcats`.  
+
+```{r, nebraska_avg_temp_t_test_viz_2}
+lincoln_weather %>% 
+  mutate(Month = forcats::fct_rev(Month)) %>% 
+  ggplot(mapping = aes(x = Month, y = `Mean Temperature [F]`)) +
+  stat_summary(fun.data = 'mean_se',
+               fun.args = list(mult = 2)) +
+  theme_bw()
+```
+
+Easier to **flip** the coordinate system to put the months on the y-axis.  
+
+```{r, nebraska_avg_temp_t_test_viz_3}
+lincoln_weather %>% 
+  # mutate(Month = forcats::fct_rev(Month)) %>% 
+  ggplot(mapping = aes(x = Month, y = `Mean Temperature [F]`)) +
+  stat_summary(fun.data = 'mean_se',
+               fun.args = list(mult = 2)) +
+  coord_flip() +
+  theme_bw()
+```
+
+### Visual t-test for the iris data set
+
+```{r, iris_glimpse}
+iris %>% glimpse()
+```
+
+Calculate the average `Sepal.Length` per `Species` and check if there are differences in the average across `Species`.  
+
+```{r, iris_viz_sepal_length_t_test_1}
+iris %>% 
+  ggplot(mapping = aes(x = Species, y = Sepal.Length)) +
+  stat_summary(fun.data = 'mean_se',
+               mapping = aes(color = Species),
+               fun.args = list(mult = 2),
+               size = 2) +
+  ggthemes::scale_color_colorblind(guide = FALSE) +
+  theme_bw()
+```
+
+## Continuous variable relationships
+
+Looked at the correlation coefficient between the `Sepal` variables.  
+
+```{r, iris_sepal_corr}
+iris %>% 
+  select(starts_with("Sepal.")) %>% 
+  cor()
+```
+
+Looked at the correlation coefficient **grouped by** `Species`.  
+
+```{r, iris_sepal_corr_species}
+iris %>% 
+  select(Species, starts_with("Sepal.")) %>% 
+  group_by(Species) %>% 
+  group_modify( ~ as.data.frame(cor(.x)))
+```
+
+
+Visualizing correlation plots can streamline understanding the linear relationship across many **pairs** of variables.  
+
+```{r, iris_cor_mat}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  cor()
+```
+
+### Sonar data
+
+Need the `mlbench` package.  
+
+```{r, read_sonar_data}
+data("Sonar", package = 'mlbench')
+```
+
+```{r, sonar_dim_check}
+Sonar %>% dim()
+```
+
+```{r, check_sonar_datatypes}
+Sonar %>% purrr::map_chr(class)
+```
+
+Check the correlation between every pair of variables.  
+
+```{r, sonar_cor_mat_check}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  dim()
+```
+
+Visualize the correlation plot using `corrplot`.  
+
+```{r, load_corrplot_pkg}
+library(corrplot)
+```
+
+`corrplot` has a main function `corrplot()` that requires a correlation matrix as input.  
+
+```{r, sonar_corrplot_viz_1}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot()
+```
+
+When there are many variables I prefer to use the squares instead of circles.  
+
+```{r, sonar_corrplot_viz_2}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square')
+```
+
+Can just show a upper triangular plot.  
+
+```{r, sonar_corrplot_viz_3}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square', type = 'upper')
+```
+
+We can reorganize the variables based on **groups** or **clusters** of variables.  
+
+```{r, sonar_corrplot_viz_4}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square', order = 'hclust')
+```
+
+By default the complete linkage is used, but I prefer the Ward method.  
+
+```{r, sonar_corrplot_viz_5}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square', order = 'hclust', hclust.method = 'ward.D2')
+```
+
+Lastly we can draw rectangles around the clusters.  
+
+```{r, sonar_corrplot_viz_6}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square', order = 'hclust', hclust.method = 'ward.D2',
+                     addrect=8)
+```
+
+With smaller data sets like `iris` we can show the correlation coefficient value directly.  
+
+```{r, iris_viz_corrplot}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot.mixed()
+```
+
