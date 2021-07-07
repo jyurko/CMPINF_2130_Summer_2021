@@ -53,3 +53,17 @@ In-class programming examples are light on comments and discussion text. Please 
 * Continuous variable summary statistics grouped by categorical variables - BOXPLOTS!  
 * Boxplots vs violin plots, stripplots vs beeswarm splots  
 * Introduction to rain cloud plots  
+
+## Week 07
+* Review quantiles and boxplots via geom_linerange()  
+* Compare violin plots, joy/ridge plots, and rain cloud plots  
+* Summarize and compare averages across groups
+* Review standard error on the mean and confidence intervals
+* Correlation plots and ordering correlation plots via hierarchical clustering  
+
+## Week 08
+* Correlation plots grouped by categorical variables in Seaborn and ggplot2  
+* 2D histograms and 2D density estimates in Seaborn and ggplot2  
+* pair plots in Seaborn and ggplot2  
+* joint distributions + marginals in Seaborn (jointplot) and ggplot2  
+* reshaping data with tidyverse
