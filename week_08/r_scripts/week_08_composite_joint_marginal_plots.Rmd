@@ -1,0 +1,156 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 08"
+subtitle: 'Composite graphics'
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_packages}
+library(tidyverse)
+
+library(ggExtra)
+```
+
+## Iris data
+
+Create a scatter plot between the Sepal variables.  
+
+```{r, iris_sepal_scatter}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(alpha = 0.5, size = 3) +
+  theme_bw()
+```
+
+Creating a composite graphic such as a scatter plot combined with histograms is challenging. We will use the `ggMarginal()` function from `ggExtra` to create the **composite graphic** or the *marginal+scatter* plot.  
+
+First, let's assign the scatter plot to a variable.  
+
+```{r, make_scatter_plot_object}
+p <- iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(alpha = 0.5, size = 3) +
+  theme_bw()
+```
+
+
+We can visualize the plot by printing or just displaying it.  
+
+```{r, view_plot_object_1}
+print( p )
+```
+
+Or:  
+
+```{r, view_plot_object_2}
+p
+```
+
+Modify the scatter plot by combining or adding the marginal histograms outside of the graphical window.  
+
+```{r, add_in_hist_1}
+p1 <- ggMarginal(p, type = 'histogram')
+```
+
+Print `p1` to visualize the marginal + scatter plot.  
+
+```{r, viz_marginal_p1}
+print( p1 )
+```
+
+We could instead use kernel density estimates for the marginal distributions.  
+
+```{r, add_in_dens_1}
+p2 <- ggMarginal(p, type = 'density')
+```
+
+Visualize the marginal + scatter plot again but with kde.  
+
+```{r, viz_marginal_p2}
+print( p2 )
+```
+
+If we are interested in the marginal summary statistics we can use boxplots outside the graphical window.  
+
+```{r, add_in_box_1}
+p3 <- ggMarginal(p, type = 'boxplot')
+```
+
+
+Visualize again.  
+
+```{r, viz_marginal_p3}
+print( p3 )
+```
+
+We could instead use a 2D joint density estimate to represent the joint distribution.  
+
+```{r, make_2d_density_plot}
+sepal_2d <- iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d(size = 1.1) +
+  geom_point(alpha = 0.5, size = 3) +
+  theme_bw()
+
+print( sepal_2d )
+```
+
+Add in the marginal distributions via kde plots.  
+
+```{r, add_marg_2d_sepal}
+sepal_2d_marg <- ggMarginal(sepal_2d, type = 'density')
+```
+
+Visualize.  
+
+```{r, viz_marg_2d_sepal}
+print( sepal_2d_marg )
+```
+
+We can also color by a categorical with the joint distribution **and** the marginal.  
+
+```{r, make_joint_with_species}
+sepal_species <- iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width,
+                       color = Species)) +
+  geom_density_2d(size = 1.1) +
+  geom_point(alpha = 0.5, size = 3) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+Add in the marginal grouped density plots.  
+
+```{r, add_marginal_species_dens}
+sepal_species_marg <- ggMarginal(sepal_species, type = 'density', groupColour = TRUE )
+```
+
+Visualize the grouped joint and marginal densities.  
+
+```{r, viz_species_density_groups}
+print( sepal_species_marg )
+```
+
+We could also fill and color boxplots in the marginals if we would prefer.  
+
+```{r, add_species_box_marg}
+sepal_species_box <- ggMarginal( sepal_species, type = 'boxplot', 
+                                 groupFill = TRUE, groupColour = TRUE,
+                                 xparams = list(alpha = 0.35),
+                                 yparams = list(alpha = 0.35))
+```
+
+Visualize.  
+
+```{r, viz_species_box_marg}
+print( sepal_species_box )
+```
+

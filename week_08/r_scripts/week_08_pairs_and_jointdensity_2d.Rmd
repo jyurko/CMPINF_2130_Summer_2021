@@ -1,0 +1,486 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 08"
+subtitle: "pairsplots, 2D histograms"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_packages}
+library(tidyverse)
+
+library(GGally)
+```
+
+## Iris data
+
+`iris` has 4 continuous variables.  
+
+```{r, check_iris_types}
+iris %>% purrr::map_chr(class)
+```
+
+Correlation plot showing the correlation coefficient for all numeric variables.  
+
+```{r, corrplot_iris_viz}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'number')
+```
+
+Correlation coefficient only tells us linear relationships. It's always important to visualize the data directly. Do not only rely on the correlatioin coefficient to understand the relationship between variables.  
+
+A scatter plot can help us understand the relationship or **joint** behavior of two continuous variables.  
+
+```{r, iris_sepal_scatter_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  theme_bw()
+```
+
+A **pairsplot** creates all pairs of scatter plots for us. Sometimes this is called a (pairs) plot matrix.  
+
+The base R `pairs()` function creates the pairsplot.  
+
+```{r, viz_iris_base_pairs}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  pairs()
+```
+
+`pairs()` also works with categorical variables.  
+
+```{r, viz_iris_base_pairs_2}
+iris %>% 
+  pairs()
+```
+
+`GGally` has a ggplot2 style version of base `R` `pairs()` named `ggpairs()`.  
+
+Let's first look at the `ggpairs()` of the continuous variables only.  
+
+```{r, ggpairs_iris_1}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  ggpairs()
+```
+
+
+Let's hide the progress by setting `progress = FALSE` in the `ggpairs()` call.  
+
+```{r, ggpairs_iris_2}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  ggpairs(progress = FALSE)
+```
+
+`ggpairs()` produces a ggplot object, so we can set the theme just like we did with "regular" ggplot objects.  
+
+```{r, ggpairs_iris_3}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  ggpairs(progress = FALSE) +
+  theme_bw()
+```
+
+We can use a histogram for the main diagonal instead of the kernel destiny estimate.  
+
+```{r, ggpairs_iris_4}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  ggpairs(progress = FALSE,
+          diag = list(continuous = 'barDiag')) +
+  theme_bw()
+```
+
+
+We can specify the number of bins for the marginal histograms.  
+
+```{r, ggpairs_iris_5}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  ggpairs(progress = FALSE,
+          diag = list(continuous = wrap('barDiag', bins=25))) +
+  theme_bw()
+```
+
+We can use the `columns` argument in `ggpairs()` to specify the columns/variables to display.  
+
+```{r, ggpairs_iris_6}
+iris %>% 
+  ggpairs(columns = 1:4,
+          progress = FALSE,
+          diag = list(continuous = wrap('barDiag', bins=25))) +
+  theme_bw()
+```
+
+We must know the order of the variables to use the `columns` argument.  
+
+```{r, ggpairs_iris_7}
+iris %>% names()
+```
+
+We can always look at the scatter plot directly to check.  
+
+```{r, check_a_scatter_plot}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Petal.Width)) +
+  geom_point() +
+  theme_bw()
+```
+
+
+`ggpairs()` also works with categorical variables.  
+
+```{r, ggpairs_iris_8}
+iris %>% 
+  ggpairs(progress = FALSE,
+          diag = list(continuous = wrap('barDiag', bins=25))) +
+  theme_bw()
+```
+
+
+We can use stripplots for the lower diagonal for the "combination" between continuous and categorical to be consistent with the continuous scatter plots.  
+
+```{r, ggpairs_iris_9}
+iris %>% 
+  ggpairs(progress = FALSE,
+          diag = list(continuous = wrap('barDiag', bins=25)),
+          lower = list(combo = 'dot_no_facet')) +
+  theme_bw()
+```
+
+Usually when I work with pairs plots I color by a categorical rather than include it in the subplots.  
+
+```{r, ggpairs_iris_10}
+iris %>% 
+  ggpairs(columns = 1:4,
+          progress = FALSE,
+          diag = list(continuous = wrap('barDiag', bins=25)),
+          mapping = aes(color = Species)) +
+  theme_bw()
+```
+
+If we do not specify the `diag` we will get the default density plots along the main diagonal.  
+
+```{r, ggpairs_iris_11}
+iris %>% 
+  ggpairs(columns = 1:4,
+          progress = FALSE,
+          mapping = aes(color = Species)) +
+  theme_bw()
+```
+
+
+## Joint distributions
+
+What if there are many observations right on top of each other or very close together? Essentially, how do we handle a "busy" scatter plot?  
+
+
+For example, let's look at the scatter plot between the Sepal variables.  
+
+```{r, sepal_scatter_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(size = 3.5) +
+  theme_bw()
+```
+
+Transparency can help identify "high density" regions.  
+
+```{r, sepal_scatter_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(size = 3.5, alpha=0.25) +
+  theme_bw()
+```
+
+Or we can count the number of observations per combination.  
+
+```{r, sepal_scatter_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_count() +
+  theme_bw()
+```
+
+But what if we have more data? Or what there are many tightly packed observations, but a large number of unique values?  
+
+For example, let's work with the `diamonds` data set.  
+
+```{r, glimspse_diamonds_data}
+diamonds %>% dplyr::glimpse()
+```
+
+Look at the scatter plot between `price` and `carat`.  
+
+```{r, viz_carat_price_scatter}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_point() +
+  theme_bw()
+```
+
+Raise transparency (reduce `alpha`).  
+
+```{r, viz_carat_price_scatter_2}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_point(alpha = 0.005) +
+  theme_bw()
+```
+
+
+If we count...we can't really see anything...  
+
+```{r, viz_cara_price_scatter_count}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_count() +
+  theme_bw()
+```
+
+We want to know where the data are dense vs less concentrated. We can use 2D histogram to represent the **joint distribution** between two continuous variables.  
+
+```{r, viz_bin2d_carat_price}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_bin_2d() +
+  theme_bw()
+```
+
+Essentially `geom_bin_2d()` performs two `cut()` functions behind the scenes and then `count()` by the combinations of the discretized continuous variables.  
+
+We can raise or lower the number of bins.  
+
+```{r, viz_bin2d_carat_price_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_bin_2d(bins = 11) +
+  theme_bw()
+```
+
+Because the bin is defined based on 2 variables we can use two separate bin sizes.  
+
+```{r, viz_bin2d_carat_price_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_bin_2d(bins = c(101, 5)) +
+  theme_bw()
+```
+
+I tend to start with 11 bins in each direction.  
+
+```{r, viz_bin2d_carat_price_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_bin_2d(bins = 11) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Let's now make a 2D histogram for the `price` and `carat` joint distribution.  
+
+```{r, viz_bin2d_carat_price_5}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_bin_2d(bins = 11) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+
+Try the default number of bins.  
+
+```{r, viz_bin2d_carat_price_6}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_bin_2d() +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Alternatively instead of the rectangles we can use hexagons to represent the 2D histogram.  
+
+```{r, viz_hex_carat_price_1}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_hex() +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+
+### Conditioning
+
+We can condition a scatter plot on a categorical variable. First look at iris sepal variables per Species.  
+
+```{r, iris_scatter_per_species}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  facet_wrap(~Species) +
+  theme_bw()
+```
+
+We can visualize the joint distribution as a 2D histogram for separate levels of a categorical.  
+
+```{r, iris_hex_per_species}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_hex(bins = 11) +
+  facet_wrap(~Species) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Use the `cut` variable as the grouping categorical variable in `diamonds`.  
+
+```{r, check_cut_levels}
+diamonds %>% dplyr::count(cut)
+```
+
+
+Condition the hexbin plot of `price` and `carat` on `cut`.  
+
+```{r, viz_carat_price_hex_cut}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_hex() +
+  facet_wrap(~cut) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+We can scale the fill color relative to the max count per faceting variable group.  
+
+```{r, viz_carat_price_hex_cut_2}
+diamonds %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_hex(mapping = aes(fill = stat(ncount))) +
+  facet_wrap(~cut) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+Check by filtering to the `cut == 'Fair'`.  
+
+```{r, viz_carat_price_hex_cut_3}
+diamonds %>% 
+  dplyr::filter(cut == "Fair") %>% 
+  ggplot(mapping = aes(x = carat, y = price)) +
+  geom_hex() +
+  facet_wrap(~cut) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+We can also us a kernel density estimate to smooth out the counts of a histogram.  
+
+Let's first see the 2D density estimate for iris.  
+
+```{r, iris_sepal_2d_density}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d() +
+  theme_bw()
+```
+
+We can overlay the scatter plot to confirm the contour behavior.  
+
+```{r, iris_sepal_2d_density_2}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(size = 3, alpha = 0.25) +
+  geom_density_2d() +
+  theme_bw()
+```
+
+Alternatively we can compare the 2D histogram with the 2D density estimate.  
+
+```{r, iris_sepal_2d_density_3}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_hex(bins=11) +
+  geom_density_2d(color = 'darkorange', size = 1.25) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+
+We can also use a filled in contour plot if we would like.  
+
+```{r, iris_sepal_2d_density_4}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d_filled() +
+  theme_bw()
+```
+
+We can also condition the 2D density estimate on a categorical variable.  
+
+```{r, iris_sepal_2d_density_5}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d_filled() +
+  facet_wrap(~Species) +
+  theme_bw()
+```
+
+And so we may instead prefer to use a relative fill scale to focus on the combinations with the highest relative density in each facet.  
+
+```{r, iris_sepal_2d_density_6}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d_filled(contour_var = 'ndensity') +
+  facet_wrap(~Species) +
+  theme_bw()
+```
+
+Alternatively, we can overlay densities on a single plot colored by the categorical variable.  
+
+```{r, iris_sepal_2d_density_7}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_density_2d(mapping = aes(color = Species),
+                  size = 1.1) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+Overlaying density contours by coloring with categoricals is popular in pairs plots.  
+
+```{r, iris_pairs_plots_again}
+iris %>% 
+  ggpairs(columns = 1:4,
+          progress = FALSE,
+          mapping = aes(color = Species)) +
+  theme_bw()
+```
+
+Instead use a 2D density estimate, but it is important to use the `ndensity` to compare the relative heights across the categorical groups.  
+
+```{r, iris_pairs_plot_ndensity_2d}
+iris %>% 
+  ggpairs(columns = 1:4,
+          progress = FALSE,
+          mapping = aes(color = Species),
+          upper = list(continuous = wrap('density', 
+                                         contour_var = 'ndensity',
+                                         adjust = 1.5))) +
+  theme_bw()
+```
+
+There are other options we can consider for how to display the diagonal and off-diagonal subplots within a pairs plot. Please see the `ggpairs()` documentation to learn more.  
+
+[ggpairs main reference](https://ggobi.github.io/ggally/reference/ggpairs.html)  
+
+[ggpairs function types](https://ggobi.github.io/ggally/articles/ggally_plots.html)  

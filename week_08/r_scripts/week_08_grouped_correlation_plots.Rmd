@@ -1,0 +1,323 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 08"
+subtitle: "correlation plots per group"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_packages}
+library(tidyverse)
+
+library(corrr)
+```
+
+`corrr` is a package dedicated to working with, manipulating, and visualizing correlation matrices.  
+
+## Iris data
+
+```{r, calc_iris_corrr_matrix}
+iris_corrr <- iris %>% 
+  purrr::keep(is.numeric) %>% 
+  corrr::correlate()
+```
+
+Contrast this with the behavior from `cor()` function from base `R`.  
+
+```{r, calc_iris_cor_base}
+iris_cor_base <- iris %>% 
+  purrr::keep(is.numeric) %>% 
+  cor()
+```
+
+
+Display the correlation matrix from base R.  
+
+```{r, show_cor_mat_iris}
+iris_cor_base
+```
+
+Display the `correlate()` correlation matrix.  
+
+```{r, show_corrr_mat_iris}
+iris_corrr
+```
+
+Change the diagonal behavior.  
+
+```{r, check_diag_corrr_behavior}
+iris %>% 
+  purrr::keep(is.numeric) %>% 
+  correlate(diagonal = 1)
+```
+
+
+Visualize the correlation dataframe using `rplot()`.  
+
+```{r, viz_corrr_rplot}
+iris_corrr %>% rplot()
+```
+
+`corrr` is a network style graph for visualizing the correlations.  
+
+```{r, viz_corrr_network}
+iris_corrr %>% network_plot()
+```
+
+`corrr` also allows reshaping the correlation dataframe into a long-format.  
+
+```{r, reshape_stretch_corrr}
+iris_corrr %>% stretch()
+```
+
+The long-format is especially useful for working with grouped correlation dataframes. Let's create the grouped correlation dataframe for each level of `Species`.  
+
+```{r, make_grouped_corrr_1}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf)
+```
+
+We can now visualize the correlation coefficient with `ggplot2` using facets to display the levels of `Species`.  
+
+```{r, viz_corr_group_1}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  facet_wrap(~Species) +
+  labs(x = '', y ='') +
+  theme_bw()
+```
+
+Modify the correlation plot fill and legend.  
+
+```{r, viz_corr_group_2}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  facet_wrap(~Species) +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid = 'white',
+                       high = 'skyblue1',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x = '', y ='') +
+  theme_bw()
+```
+
+Rotate the x-axis label text.  
+
+```{r, viz_corr_group_3}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  facet_wrap(~Species) +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid = 'white',
+                       high = 'skyblue1',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x = '', y ='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+Turn off or make the correlation function work "quietly".  
+
+```{r, viz_corr_group_4}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate, quiet=TRUE)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  facet_wrap(~Species) +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid = 'white',
+                       high = 'skyblue1',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x = '', y ='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+I like to dispaly the correlation coefficient as text or to annotate the plot.  
+
+```{r, viz_corr_group_5}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate, quiet=TRUE)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  geom_text(mapping = aes(label = r)) +
+  facet_wrap(~Species) +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid = 'white',
+                       high = 'skyblue1',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x = '', y ='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+The `corrr` package has a helper function called `fashion()` to make the text display "pretty". I prefer to use the base R `round()` function to round the value.  
+
+```{r, viz_corrr_group_6}
+iris %>% 
+  group_by(Species) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate, quiet=TRUE, diagonal=1)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Species, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  geom_text(mapping = aes(label = round(r, 2))) +
+  facet_wrap(~Species) +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid = 'white',
+                       high = 'skyblue1',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x = '', y ='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+## Sonar data
+
+Caclculate the correlation matrix for the continuous variables in `Sonar` and visualize as a network style graphic.  
+
+```{r, read_in_sonar}
+data("Sonar", package = 'mlbench')
+```
+
+Check the dimensionality.  
+
+```{r, check_sonar_dims}
+Sonar %>% dim()
+```
+
+Check the data types.  
+
+```{r, check_sonar_class}
+Sonar %>% purrr::map_chr(class)
+```
+
+Visualize the network style correlation plot.  
+
+```{r, viz_sonar_corr_network}
+Sonar %>% 
+  purrr::keep(is.numeric) %>% 
+  correlate(quiet=TRUE) %>% 
+  network_plot(legend = FALSE)
+```
+
+Lastly, let's calculate the correlation matrix per group of `Class`.  
+
+```{r, sonar_corr_group}
+Sonar %>% 
+  group_by(Class) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate, quiet=TRUE, diagonal=1)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Class, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r), color='white') +
+  facet_wrap(~Class, labeller = "label_both") +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid='white',
+                       high='skyblue1',
+                       midpoint=0,
+                       limits = c(-1,1)) +
+  labs(x='',y='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+
+Use string manipulation from the `stringr` package to extract the number for the variable.  
+
+```{r, sonar_corr_group_2}
+Sonar %>% 
+  group_by(Class) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, correlate, quiet=TRUE, diagonal=1)) %>% 
+  mutate(cor_lf = purrr::map(cor_wf, stretch)) %>% 
+  select(Class, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  mutate(x_number = stringr::str_extract(x, "\\d+"),
+         y_number = stringr::str_extract(y, '\\d+')) %>% 
+  mutate(x_number = as.numeric(x_number),
+         y_number = as.numeric(y_number)) %>% 
+  ggplot(mapping = aes(x = as.factor(x_number), y = as.factor(y_number))) +
+  geom_tile(mapping = aes(fill = r), color='white') +
+  facet_wrap(~Class, labeller = "label_both") +
+  scale_fill_gradient2('corr',
+                       low = 'indianred2',
+                       mid='white',
+                       high='skyblue1',
+                       midpoint=0,
+                       limits = c(-1,1)) +
+  labs(x='',y='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=90, vjust=0.5))
+```
+

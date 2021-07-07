@@ -1,0 +1,218 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 08"
+subtitle: "reshaping data"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries
+
+```{r, load_tidyverse}
+library(tidyverse)
+```
+
+## Anscombe
+
+```{r, check_anscombe}
+anscombe
+```
+
+The Anscombe data set in base `R` is **not** tidy. Each column name contains 2 pieces of information. We want to separate the column names such that each column is a single entity.  
+
+We will need to reshape the data and then manipulate the data to create the tidy and easy to model data set.  
+We must **melt** the data into a long format data set. Pandas refers to melting or making a data *molten* when we reshape wide to long. Currently in the `tidyverse` converting from wide to long format is performed with the `pivot_longer()` function.  
+
+Before making the data long, I like to include a rowid column. The `cols` argument in `pivot_longer()` is how we instruct what columns "gather" or "make molten". We can use the `dplyr` select-like terminology to identify those columns.  
+
+```{r, ans_1}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = -rowid)
+```
+
+We can check that we still have the same number of observations per variable with `count()`.  
+
+```{r, ans_2}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = -rowid) %>% 
+  count(name)
+```
+
+We can provide a character string to identify the columns with the `cols` argument.  
+
+```{r, ans_3}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("rowid"), names_to = "variable_name", values_to = "variable_value")
+```
+
+The `tidyr` package has a helper function dedicated to separating character strings based on patterns or positions.  
+
+```{r, ans_4}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("rowid")) %>% 
+  tidyr::separate(name,
+                  c("var_name", "dataset"),
+                  sep = 1,
+                  remove = FALSE)
+```
+
+As a check, the Anscombe data set consists of 4 sub-datasets or groups.  
+
+```{r, ans_5}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("rowid")) %>% 
+  tidyr::separate(name,
+                  c("var_name", "dataset"),
+                  sep = 1,
+                  remove = TRUE) %>% 
+  count(dataset, var_name)
+```
+
+We ultimately want to relate `y` and `x` together. We want to be able to fit linear models with a linear relationship between `y` and `x`.  
+
+$$ 
+\mathrm{trend_n} = \beta_0 + \beta_1 \times x_n
+$$
+
+The likelihood is a Gaussian:  
+
+$$ 
+y_n \mid \mathrm{trend_n}, \sigma \sim \mathrm{normal} \left( \mathrm{trend_n}, \sigma \right) 
+$$
+
+We need to convert the long format into a wide format again. In `tidyverse` this is accomplished via `pivot_wider()`. We must specify the column the new wider columns will be named "from" and the column the new wider values or entries come from.  
+
+```{r, ans_6}
+anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("rowid")) %>% 
+  tidyr::separate(name,
+                  c("var_name", "dataset"),
+                  sep = 1,
+                  remove = TRUE) %>% 
+  pivot_wider(names_from = "var_name", values_from = "value")
+```
+
+Let's assign the tidy data set to an object.  
+
+```{r, ans_7}
+ans_tidy <- anscombe %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(cols = !c("rowid")) %>% 
+  tidyr::separate(name,
+                  c("var_name", "dataset"),
+                  sep = 1,
+                  remove = TRUE) %>% 
+  pivot_wider(names_from = "var_name", values_from = "value")
+```
+
+As a check, let's look at the observations for the first data set.  
+
+```{r, ans_1_check}
+anscombe %>% 
+  select(ends_with("1"))
+```
+
+Out tidy data set associated with Anscombe data set 1:  
+
+```{r, ans_1_check_tidy}
+ans_tidy %>% 
+  filter(dataset == "1")
+```
+
+We can easily group and summarize the tidy data. Let's calculate summary statistics for `x` and `y` associated with each group.  
+
+```{r, ans_8}
+ans_tidy %>% 
+  group_by(dataset) %>% 
+  summarise(num_rows = n(),
+            avg_x = mean(x),
+            var_x = var(x),
+            avg_y = mean(y),
+            var_y = var(y)) %>% 
+  ungroup()
+```
+
+The basic summary stats of sample averages and sample variances are essentially the same in all 4 Anscome groups. All 4 groups have the same linear relationship regression model! To show that, we will use nesting, functional programming with `purrr` and some help from the `broom` package.  
+
+```{r, ans_9}
+ans_tidy %>% 
+  group_by(dataset) %>% 
+  tidyr::nest() %>% 
+  mutate(lm_mod = purrr::map(data, ~lm(formula = y ~ x, data = .)),
+         lm_results = purrr::map(lm_mod, broom::glance),
+         lm_coef = purrr::map(lm_mod, broom::tidy))
+```
+
+Let's extract coefficients and their standard errors for each for 4 fit models.  
+
+```{r, ans_10}
+ans_tidy %>% 
+  group_by(dataset) %>% 
+  tidyr::nest() %>% 
+  mutate(lm_mod = purrr::map(data, ~lm(formula = y ~ x, data = .)),
+         lm_results = purrr::map(lm_mod, broom::glance),
+         lm_coef = purrr::map(lm_mod, broom::tidy)) %>% 
+  select(dataset, lm_coef) %>% 
+  tidyr::unnest(lm_coef)
+```
+
+Let's reshape into a wide format and look at the estimates for the intercept and slope across the 4 data sets.  
+
+```{r, ans_11}
+ans_tidy %>% 
+  group_by(dataset) %>% 
+  tidyr::nest() %>% 
+  mutate(lm_mod = purrr::map(data, ~lm(formula = y ~ x, data = .)),
+         lm_results = purrr::map(lm_mod, broom::glance),
+         lm_coef = purrr::map(lm_mod, broom::tidy)) %>% 
+  select(dataset, lm_coef) %>% 
+  tidyr::unnest(lm_coef) %>% 
+  select(dataset, term, estimate) %>% 
+  pivot_wider(names_from = 'term', values_from = 'estimate')
+```
+
+Let's now look at the performance metrics.  
+
+```{r, ans_12}
+ans_tidy %>% 
+  group_by(dataset) %>% 
+  tidyr::nest() %>% 
+  mutate(lm_mod = purrr::map(data, ~lm(formula = y ~ x, data = .)),
+         lm_results = purrr::map(lm_mod, broom::glance),
+         lm_coef = purrr::map(lm_mod, broom::tidy)) %>% 
+  select(dataset, lm_results) %>% 
+  tidyr::unnest(lm_results)
+```
+
+Let's now look at the data. We will use a scatter plot and facet by the data set.  
+
+```{r, viz_ans_1}
+ans_tidy %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 2) +
+  facet_wrap(~dataset, labeller = "label_both") +
+  theme_bw()
+```
+
+We can include the linear relationship linear model on the facets that we had previously fit.  
+
+```{r, viz_ans_2}
+ans_tidy %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_point(size = 2) +
+  geom_smooth(formula = y ~ x,
+              method = lm) +
+  facet_wrap(~dataset, labeller = "label_both") +
+  theme_bw()
+```
+
