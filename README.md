@@ -67,3 +67,15 @@ In-class programming examples are light on comments and discussion text. Please 
 * pair plots in Seaborn and ggplot2  
 * joint distributions + marginals in Seaborn (jointplot) and ggplot2  
 * reshaping data with tidyverse
+
+## Week 09
+* Intro to plotly in R with ggplotly()  
+* Working with ggplotly() in RMarkdown  
+* Intro to R Shiny for dynamic and reactive web-based visualizations  
+  * ui.R vs server.R vs global.R scripts  
+  * input and output reserved keywords  
+  * sliderInput(), checkboxInput(), and selectInput() arguments and uses  
+  * renderPlot() vs plotOutput()  
+* Demonstration R Shiny apps:
+  * Explore old faithful data set with histograms, scatter plots, and density estimates
+  * Explore iris data set with user dynamic control of scatter plot x, y, and color aesthetics
