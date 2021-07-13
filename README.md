@@ -73,6 +73,7 @@ In-class programming examples are light on comments and discussion text. Please 
 * Working with ggplotly() in RMarkdown  
 * Intro to R Shiny for dynamic and reactive web-based visualizations  
   * ui.R vs server.R vs global.R scripts  
+  * side bar vs main panels in sidebarLayout()
   * input and output reserved keywords  
   * sliderInput(), checkboxInput(), and selectInput() arguments and uses  
   * renderPlot() vs plotOutput()  
