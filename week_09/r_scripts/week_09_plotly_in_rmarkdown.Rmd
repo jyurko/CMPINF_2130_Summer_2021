@@ -1,0 +1,48 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 09"
+subtitle: "plotly in RMarkdown"
+author: "Dr. Joseph P. Yurko"
+date: "7/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r, load_pkgs}
+library(tidyverse)
+
+library(plotly)
+```
+
+## Iris
+
+Visualize a "static" ggplot scatter plot between the Sepal variables with `ggplot2`.  
+
+```{r, viz_1}
+iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(size = 3.5) +
+  theme_bw()
+```
+
+Make an interactive version with `ggplotly()`.  
+
+```{r, make_ggplotly_fig}
+p <- iris %>% 
+  ggplot(mapping = aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point(size = 3.5) +
+  theme_bw()
+
+fig <- ggplotly(p)
+```
+
+Visualize the interactive figure.  
+
+```{r, viz_2}
+fig
+```
+
