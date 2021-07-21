@@ -1,0 +1,489 @@
+---
+title: "CMPINF 2130 Summer 2021 - Extra examples"
+subtitle: "Text analysis with tidytext"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This Markdown document demonstrates basic text analysis steps through the `tidytext` package. The `tidytext` book, *Text Mining with R: A Tidy Approach* by Julia Silge and David Robinson is an excellent resource for getting started with text analysis. The book is available free online [here](https://www.tidytextmining.com/index.html).  
+
+We will demonstrate tidying text data into an easier to work with format, and then demonstrate basic exploration of the text.  
+
+## Load packages
+
+We will use the `tidyverse` and `tidytext`. Both are loaded in the code chunk below.  
+
+```{r, load_packages}
+library(tidyverse)
+
+library(tidytext)
+```
+
+Later sections in this report use the `ggraph` and `tidygraph` packages. Downloading and installing the `ggraph` package should also install `tidygraph` as a dependency, thus you just need to install `ggraph`. After installing `ggraph`, you may need to download the `Rcpp` package a second time. Unfortunately, there seems to be a bug with R 4.1.0 that requires the `Rcpp` package to be downloaded two times. As a side note, the `Rcpp` package allows writing C++ compiled code and using that code within `R`. It is an excellent library for accelerating `R` for computationally expensive tasks. Many of the top packages use `Rcpp` behind the scenes. Working with `Rcpp` is an advanced topic, but if you are interested to learn about it please contact Dr. Yurko for references.  
+
+## tidying a character vector
+
+We will start by manually creating a character vector and then "tidying" that vector into an easier to work with format. The works of JRR Tolkien, including *The Lord of the Rings* and *The Hobbit*, are some of my favorite books. For this example, we will work with the lyrics for the *Far Over the Misty Mountains Cold* song from the Hobbit. The text was copied and pasted from [the LOTR wiki page](https://lotr.fandom.com/wiki/Far_Over_the_Misty_Mountains_Cold#:~:text=Far%20Over%20the%20Misty%20Mountains%20Cold%20is%20a,Mountain%2C%20or%20shortened%20to%20simply%20%22The%20Misty%20Mountains%22.) and assigned to the `misty_mnt` character vector in the code chunk below.  
+
+```{r, make_hobbit_song}
+misty_mnt <- "Far over the misty mountains cold
+To dungeons deep and caverns old
+We must away ere break of day
+To seek the pale enchanted gold.
+The dwarves of yore made mighty spells,
+While hammers fell like ringing bells
+In places deep, where dark things sleep,
+In hollow halls beneath the fells.
+For ancient king and elvish lord
+There many a gleaming golden hoard
+They shaped and wrought, and light they caught
+To hide in gems on hilt of sword.
+On silver necklaces they strung
+The flowering stars, on crowns they hung
+The dragon-fire, in twisted wire
+They meshed the light of moon and sun.
+Far over the misty mountains cold
+To dungeons deep and caverns old
+We must away, ere break of day,
+To claim our long-forgotten gold.
+Goblets they carved there for themselves
+And harps of gold; where no man delves
+There lay they long, and many a song
+Was sung unheard by men or elves.
+The pines were roaring on the height,
+The winds were moaning in the night.
+The fire was red, it flaming spread;
+The trees like torches blazed with light.
+The bells were ringing in the dale
+And men they looked up with faces pale;
+The dragon’s ire more fierce than fire
+Laid low their towers and houses frail.
+The mountain smoked beneath the moon;
+The dwarves they heard the tramp of doom.
+They fled their hall to dying fall
+Beneath his feet, beneath the moon.
+Far over the misty mountains grim
+To dungeons deep and caverns dim
+We must away, ere break of day,
+To win our harps and gold from him!
+"
+```
+
+Although we have all the words to the song in a character vector, it's difficult to extract meaningful information. We want to be able to identify individual words and understand the relationship between words. At the moment, we have no context at all, we simply have a character vector. Also it is important to note that in `R` although there are many words and characters in the string, the `misty_mnt` character vector consists of a single element:  
+
+```{r, check_mnt_chr_length}
+misty_mnt %>% length()
+```
+
+We can count the number of characters within the character vector:  
+
+```{r, check_mnt_nchar}
+misty_mnt %>% nchar()
+```
+
+That number of course has no context about the number of words, or lines, or verses of the text.  
+
+A first step to "tidying" the data is to separate the text into individual lines. We can use the base `R` `strsplit()` function or the `tidyverse` `str_split()` function from the `stringr` package to accomplish this. The `stringr` package is loaded when `tidyverse` is loaded, so we have access to the functions within `stringr` everytime we call `library(tidyverse)`. However, the code below uses the `::` notation to highlight just which package the function comes from. The first argument to `str_split()` is the string we wish to *split* or "break up". The second argument is the splitting pattern which we will use to "break up" the string into smaller strings. We want to split based on a new line so the pattern of interest is `'\n'`. By default a list is returned, as shown by the call to the `class()` function in the code chunk below.  
+
+```{r, break_mnt_lines}
+misty_mtn_lines <- stringr::str_split(misty_mnt, "\n")
+
+misty_mtn_lines %>% class()
+```
+
+The list consists of a single element, as confirmed below.  
+
+```{r, check_misty_mtn_list_length}
+misty_mtn_lines %>% length()
+```
+
+We can access the single element within `misty_mtn_lines` using the double bracket notation, `[[]]`. The code chunk below shows that the element within the list is a character vector with length `r length(misty_mtn_lines[[1]])`.  
+
+```{r, check_misty_mtn_list_element}
+misty_mtn_lines[[1]] %>% class()
+
+misty_mtn_lines[[1]] %>% length()
+```
+
+Let's now look at the first six elements of the split character vector using `head()`.  
+
+```{r, check_misty_mtn_list_head}
+misty_mtn_lines[[1]] %>% head()
+```
+
+Let's now check the last elements in the vector using the `tail()` function.  
+
+```{r, check_misty_mtn_list_tail}
+misty_mtn_lines[[1]] %>% tail()
+```
+
+
+Each element in the vector corresponds to a line in the song! We're starting to get somewhere! However, we need to perform a few additional organizational steps. Instead of continuing to work with a character vector, let's create a tibble with a column `text` equal to `misty_mtn_lines[[1]]`.  
+
+```{r, make_misty_df}
+misty_df <- tibble::tibble(text = misty_mtn_lines[[1]])
+
+misty_df %>% glimpse()
+```
+
+We saw from the `tail()` result that the last element and thus last row of `misty_df` is a blank line. Rather than manually removing that row, let's programmatically identify it by counting the number of characters in each line. The `tibble::rowid_to_column()` function is used to add an integer color for the row or line number. The tibble is sorted based on the number of characters in each line.  
+
+```{r, check_df_blank_line}
+misty_df %>% 
+  tibble::rowid_to_column("line") %>% 
+  mutate(num_char = nchar(text)) %>% 
+  arrange(num_char)
+```
+
+As we see above, the last line has 0 characters. We can therefore remove the blank line by keeping the lines with more than zero characters.  
+
+```{r, remove_blank_line_df}
+misty_df <- misty_df %>% 
+  filter(nchar(text) > 0)
+
+misty_df %>% glimpse()
+```
+
+It was difficult to tell with the original `misty_mtn` character vector, but the song is organized into verses. Each verse consists of four lines. The total number of verses in the song is therefore:  
+
+```{r, check_calc_num_verses}
+nrow(misty_df) / 4
+```
+
+We can manually include the verse number by repeating 1 through the max number of verses 4 times each, as shown below.  
+
+```{r, check_rep_4times_verse}
+rep(1:(nrow(misty_df)/4), each = 4)
+```
+
+Notice how in the above output 1 is repeated 4 times, then 2 is repeated 4 times, and so on. Let's include the verse number as a column in `misty_df`.  
+
+```{r, add_verse_number_misty}
+misty_df <- misty_df %>% 
+  mutate(verse = rep(1:(nrow(misty_df)/4), each = 4))
+
+misty_df %>% glimpse()
+```
+
+Lastly, let's include the line number in our tibble. We can use `tibble::rowid_to_column()` to add in the new variable. We will force the name of the column to be `line` instead of the default `rowid`.  
+
+```{r, add_line_number_misty}
+misty_df <- misty_df %>% 
+  tibble::rowid_to_column("line")
+
+misty_df %>% glimpse()
+```
+
+We now have everything we need to put the text data into a "tidy" format. Following the approach described in the tidytext book, a more "tidy" structure for text is **one word per row**. More generally, the tidytext book describes this structure as one *token* per row. This allows for more general formats besides a single word, but for our purposes in this example we can think about the token as a word. We therefore need to reshape `misty_df` from its current format into a long format where. Reshaping will require separating the words in each line and maintaining the association of the word to the line and verse it belongs to.  
+
+We do not need to perform these actions manually though, the `tidytext` package has a function that handles the reshaping for us. The function `unnest_tokens()` will reshape the data into a one-word-per-row format. We must instruct the `unnest_tokens()` the name of the new column to create and which column contains the text we will separate. The code chunk below shows how to do that with our current example. The result is assigned to `tidy_mtn`.  
+
+```{r, make_misty_mtn_tidy}
+tidy_mtn <- misty_df %>% 
+  unnest_tokens(word, text)
+```
+
+
+## Word counts
+
+Now that we have the words in the song organized in a "tidy" manner, we can begin to explore the text data in a more meaningful way. Let's first just get a glimpse of the data to see the structure.  
+
+```{r, check_tidy_mtn_glimpse_view}
+tidy_mtn %>% glimpse()
+```
+
+The `glimpse()` result shows us `tidy_mtn` has `r ncol(tidy_mtn)` columns and `r nrow(tidy_mtn)` rows. The `text` column from `misty_df` was separated into individual words, with the word stored in the `word` column of `tidy_mtn`. The benefit of this structure is we can easily summarize the text data! For example, we can count the number of lines, number of words, and number of unique words per verse.  
+
+```{r, misty_mtn_verse_summary}
+tidy_mtn %>% 
+  group_by(verse) %>% 
+  summarise(num_lines = n_distinct(line),
+            num_words = n(),
+            num_unique_words = n_distinct(word)) %>% 
+  ungroup()
+```
+
+
+Of course instead of looking at a print out or a table, it can be more useful to visualize these counts with a bar chart!  
+
+```{r, viz_words_per_verse}
+tidy_mtn %>% 
+  ggplot(mapping = aes(x = verse)) +
+  geom_bar(mapping = aes(group = verse)) +
+  theme_bw()
+```
+
+We may not be interested in every word in the song. For example common words such as "a", "the", "or", and "and" are usually not particularly interesting. These types of words in text analysis are sometimes referred to as "stop words". Let's bring in an existing set of stop words to work with.  
+
+```{r, load_stop_words_df}
+data("stop_words")
+
+stop_words %>% glimpse()
+```
+
+There many different kinds of "stop words", please see the tidytext book to learn more about them. For now, let's go ahead and remove all step words from `tidy_mtn` via an `anti_join()` operation. The result is assigned to a new tibble, `tidy_mtn_rm`.  
+
+```{r, remove_mtn_stop_words}
+tidy_mtn_rm <- tidy_mtn %>% anti_join(stop_words, by = "word")
+```
+
+
+Let's count the number of words and number of unique words per verse again.  
+
+```{r, tidy_mtn_summary_stop}
+tidy_mtn_rm %>% 
+  group_by(verse) %>% 
+  summarise(num_lines = n_distinct(line),
+            num_words = n(),
+            num_unique_words = n_distinct(word)) %>% 
+  ungroup()
+```
+
+
+Let's visualize the number of words and number of unique words across the verses with a line chart. This way we can get an idea of the sequential behavior across the verses. The wide-format data is first reshaped into a long-format via `pivot_longer()` and then pipped into `ggplot()`.  
+
+```{r, viz_words_vs_verse_line}
+tidy_mtn_rm %>% 
+  group_by(verse) %>% 
+  summarise(num_words = n(),
+            num_unique_words = n_distinct(word)) %>% 
+  ungroup() %>% 
+  pivot_longer(!c("verse")) %>% 
+  ggplot(mapping = aes(x = verse, y = value)) +
+  geom_line(mapping = aes(group = name,
+                          color = name),
+            size = 1.15) +
+  geom_point(mapping = aes(color = name,
+                           shape = name),
+             size = 3.5) +
+  ggthemes::scale_color_calc("") +
+  scale_shape_discrete("") +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+Let's now examine the words based on the usage. We can visualize the word use frequency with a bar chart. As we can see most of the non-stop words in the song are used just 1 time.  
+
+```{r, viz_misty_mtn_word_barchart}
+tidy_mtn_rm %>% 
+  ggplot(mapping = aes(y = word)) +
+  geom_bar() +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 6.5))
+```
+
+If we consider the original set of words, which include stop words, there are some words used more than 7 times in the song. One word is used more than 25 times, as shown below.  
+
+```{r, viz_misty_mtn_word_barchart_nonrm}
+tidy_mtn %>% 
+  ggplot(mapping = aes(y = word)) +
+  geom_bar() +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 6.5))
+```
+
+Let's print out the most frequent words, including the set of stop words. As we see below, the most common words are "the" and "and".  
+
+```{r, check_most_frequent_words_mtn}
+tidy_mtn %>% 
+  count(word) %>% 
+  arrange(desc(n))
+```
+
+In contrast, the most frequent words when the stop words are removed are:  
+
+```{r, check_most_frequent_words_mtn_b}
+tidy_mtn_rm %>% 
+  count(word) %>% 
+  arrange(desc(n))
+```
+
+We can also check which words are used more than once within each verse.  
+
+```{r, check_freq_in_verse_words}
+tidy_mtn_rm %>% 
+  count(verse, word) %>% 
+  filter(n > 1)
+```
+
+
+We can consider more specific questions if we would like. For example, maybe I would like to know which verses of the song mention "gold". We can use a simple `filter()` call to find all rows in the data set where `word == 'gold'`.  
+
+```{r, check_w}
+tidy_mtn_rm %>% 
+  filter(word == "gold")
+```
+
+The tidytext book, especially Chapter 2, discusses multiple metrics associated with word frequency and word importance. The tidytext book also discusses sentiment analysis of words if you would like to learn more.  
+
+## Relationships between words
+
+Our previous example focused on individual words. However, the `unnest_tokens()` function allows defining tokens as multiple words and complete sentences. Understanding the relationships between words can provide a better measure for the content of a document. Chapter 4 of the tidytext book describes *n-grams* in detail. For this report, we will introduce the idea of a bigram and then visualize the relatioinships with a network graph. The network graph will be created using the `ggraph` package, which streamlines the creation of a network using `ggplot2`. Please download and install `ggraph` before running the code below.  
+Before we can visualize the network graph though, we must create the pairs of sequential words in the text. We can do that by specifying the `token` argument in `unnest_tokens()` to `'ngrams'`. We must also specify the number of consecutive words to examine via the `n` argument. Since we are interested in *bigrams* at the moment, we will set `n = 2`. The bigram for the misty mountain song is created in the code chunk below using the original `misty_df` tibble.  
+
+```{r, make_misty_bigram}
+misty_mtn_bigram <- misty_df %>% 
+  unnest_tokens(bigram, text, token = 'ngrams', n = 2)
+
+misty_mtn_bigram %>% glimpse()
+```
+
+The glimpse result displayed above shows the bigram is still within the tidytext format. Each row corresponds to a token, but instead of a single word the token corresponds to a pair of words. Let's look at the first few rows so we can see the word-pair-per-row slightly easier.  
+
+```{r, viz_bigram_head}
+misty_mtn_bigram %>% head()
+```
+
+
+Notice that words are repeated within the bigram format. The first row consists of `'far over'` and the second row is `'over the'`. The first three words in the misty mountain song are `'far over the'`. These three words consist of 2 sets of word-pairs and the bigram format organizing the structure accordingly.  
+
+We can study the counts of the bigram just as we did with single words. The count corresponds the number of times a *pair* of words are used within the text. For example, the top 15 word pairs are:  
+
+```{r, count_bigram_misty}
+misty_mtn_bigram %>% 
+  count(bigram) %>% 
+  arrange(desc(n)) %>% 
+  head(15)
+```
+
+And the least frequent 15 word pairs are:  
+
+```{r, count_bigram_least_misty}
+misty_mtn_bigram %>% 
+  count(bigram) %>% 
+  arrange(n) %>% 
+  head(15)
+```
+
+Let's now visualize the bigram using a network graph. A network consists of two primary geometric objects, **nodes** and **edges**. A node can be viewed as an item or object of interest. An edge is a *link* which shows the relationships between items. Each edge has a *from* node and a *to* node. The relationship can have a definite direction, e.g. many people follow celebrities on social networks. In our present example, the nodes are words. The edges represent the relationship between the pair of words. We therefore cannot work with the `misty_mtn_bigram` tibble directly to create the network graph! We need to perform several additional data manipulation steps.  
+
+First, we need to separate the `bigram` column into the individual words. Each word is separated by a white space, `' '`. The `tidyr::separate()` function allows us to perform this very action. We identify the column to *separate*, provide the names of the new columns to create, and specify the separating pattern. The separated bigram is assigned to a new object, `misty_mtn_bigram_sep`, in the code chunk below.  
+
+```{r, make_separate_bigram_misty}
+misty_mtn_bigram_sep <- misty_mtn_bigram %>% 
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+misty_mtn_bigram_sep %>% glimpse()
+```
+
+Let's now count each combination of `word1` and `word2` in the separated bigram object. The result is identical in counts to what we had when we counting the `bigram` column previously. Instead of a word-pair "phrase" we now have two separate columns for the words in the bigram.  
+
+```{r, count_separate_bigram_misty}
+misty_mtn_bigram_counts <- misty_mtn_bigram_sep %>% 
+  count(word1, word2) %>% 
+  arrange(desc(n))
+
+misty_mtn_bigram_counts %>% glimpse()
+```
+
+We can now convert the bigram data into a network graph. The tidytext book uses the `igraph` package to do so, but I will use the `tidygraph` package. Please see the [tidygraph documentation](https://tidygraph.data-imaginist.com/index.html) to learn more if you are interested. The `tidygraph` package is loaded in the code chunk below.  
+
+```{r, load_tidygraph_pkg}
+library(tidygraph)
+```
+
+We can easily convert from a tidy tibble (dataframe) to a network graph like structure using the `as_tbl_graph()` function from `tidygraph`. The network graph structure will store the nodes and the relationships between nodes rather than the rectangular "spread sheet" like of the tibble. The `misty_mtn_bigram_counts` tibble is converted to a "tidy graph" and the result is displayed to the screen in the code chunk below. Notice that the node data and the edge data are stored as separate fields. The nodes provide the words while the edges represent which words are related or *connected*.  
+
+```{r, make_tidy_graph_misty}
+misty_mtn_graph <- misty_mtn_bigram_counts %>% 
+  as_tbl_graph()
+
+misty_mtn_graph
+```
+
+We will visualize the network graph with the `ggraph` package, which is built on top of `ggplot2`. Thus, we can use similar terminology to construct the network visualization as we have with the other visualizations we created in this course using `ggplot2` directly. Please see the [ggraph documentation](https://ggraph.data-imaginist.com/index.html) if you are interested to learn more. The `ggraph` package is loaded in the code chunk below.  
+
+```{r, load_ggraph_package}
+library(ggraph)
+```
+
+As described in the `ggraph` documentation, a `ggraph` network graph consists of 3 major elements: the layout, the nodes, and the edges. The layout is specified as an argument to the main or *parent* `ggraph()` call. The nodes and edges are added to the graph as geoms following the `ggplot2` plotting syntax. Unlike `ggplot()` though, we do not need to map the position aesthetics such as `x` and `y`. The graphing layout identifies positions for the nodes for us. Let's make our first network visualization with `ggraph()`. The edges will be displayed as "links" and the nodes will be displayed as points.  
+
+```{r, viz_misty_network_1}
+misty_mtn_graph %>% 
+  ggraph(layout = 'fr') +
+  geom_edge_link() +
+  geom_node_point() +
+  theme_void()
+```
+
+If we change the layout argument, the look of the network graph will change.  
+
+```{r, viz_misty_network_2}
+misty_mtn_graph %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_link() +
+  geom_node_point() +
+  theme_void()
+```
+
+Regardless of the layout, notice we have points and lines connecting the points. The points are the nodes or objects in our network. In our specific example, the nodes are the words of our bigram. To make this more clear let's add an additional layer where the nodes are represented by text. The text label aesthetic is mapped to the `name` variable which is associated with the node data of the tidy graph object.  
+
+```{r, viz_misty_network_3}
+misty_mtn_graph %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(mapping = aes(label = name)) +
+  theme_void()
+```
+
+The network graph above shows us the connections formed between sequences of words. It's a little tricky to see the structure though because the plot is so busy. So let's map the transparency of the edges to the frequency of each pair of words.  
+
+```{r, viz_misty_network_4}
+misty_mtn_graph %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_link(mapping = aes(edge_alpha = n)) +
+  geom_node_point() +
+  geom_node_text(mapping = aes(label = name)) +
+  theme_void()
+```
+
+At the moment, since we're exploring the text let's remove the legend. Although we lose the meaning of the transparency (opague has `n = 3` and most transparent has `n = 1`), the plotting area is larger and makes the graph easier to read.  
+
+```{r, viz_misty_network_5}
+misty_mtn_graph %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_link(mapping = aes(edge_alpha = n), show.legend = FALSE) +
+  geom_node_point() +
+  geom_node_text(mapping = aes(label = name)) +
+  theme_void()
+```
+
+The visualization above is a more clear picture of the structure. Notice the dark black edges following the sequence of nodes "we must away ere". Let's check our original tidy bigram for all lines associated with those words. As shown below, the word-pairs "we must" and "away ere" each occur 3 times in the song!  
+
+```{r, check_bigram_phrases}
+misty_mtn_bigram %>% 
+  filter(bigram %in% c("we must", "away ere"))
+```
+
+The previous bigram analysis kept the stop words in. However, we are probably more interested in phrases that sound like something from a Tolkien story. The word-pair "we must" could come from any genre. Let's remove the stop words and therefore focus on word-pairs that seem more interesting or particularly to the meaning of the song. The code chunk below starts from the original tidy `mist_df` tibble, creates the tidy bigram tibble, removes the stop words, creates the tidy graph object, and then visualizes the network graph all in one pipeline.  
+
+```{r, viz_misty_network_6}
+misty_df %>% 
+  unnest_tokens(bigram, text, token = 'ngrams', n = 2) %>% 
+  separate(bigram, c("word1", "word2"), sep = " ") %>% 
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word) %>% 
+  count(word1, word2) %>% 
+  arrange(desc(n)) %>% 
+  as_tbl_graph() %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE) +
+  geom_node_point() +
+  geom_node_text(aes(label = name)) +
+  theme_void()
+```
+
+The network graph visualized above is much more interesting. We see unique pairs of words, such as "ancient king" and "dragon fire". We also see "chains of words" or "communities" of words that are associated with multiple word pairs. For example, notice the word "gold" is connected to both "enchanted" and "forgotten". The word "enchanted" is itself connected to the word "pale". We are visualizing how words are mixed and matched together to express various phrases within the song.  
+
+## Summary
+
+This has been a short introduction to manipulating and visualizing text data within the `tidyverse` and `tidytext` frameworks. Please see the tidytext book if you want more detailed examples and contact Dr. Yurko if you have any questions.  
