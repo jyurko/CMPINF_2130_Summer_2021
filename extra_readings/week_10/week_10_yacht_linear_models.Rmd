@@ -1,0 +1,620 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 10"
+subtitle: "Regression model example - Linear models"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This RMarkdown fits multiple linear models for the Yacht Hydrodynamics example. The data comes from the UCI machine learning repository and is located [here](https://archive-beta.ics.uci.edu/ml/datasets/243). Because the UCI repo was down, the data are pulled from a Github repo associated with a Towards Data Science article located [here](https://towardsdatascience.com/model-selection-yacht-hydrodynamics-data-set-ec0f8591e8e8).  
+
+This RMarkdown assumes you have looked through the EDA report.  
+
+## Load packages
+
+We will use the `tidyverse` and base `R` to fit the models. We will use the `broom` and `coefplot` packages. If you do not have either `broom` or `coefplot` installed, please download and install them before running the code chunks in this RMarkdown. The `tidyverse` and `coefplot` packages are loaded in the code chunk below.  
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+
+library(coefplot)
+```
+
+## Read in data
+
+The data and several cleaning operations are performed in the code chunk below, as described in the EDA RMarkdown.  
+
+```{r, read_yacht_data}
+data_url <- 'https://raw.githubusercontent.com/DanielTongAwesome/Yacht_Hydrodynamics_Model/master/yacht_hydrodynamics.data'
+
+yacht <- readr::read_delim(data_url, delim = " ", col_names = FALSE)
+
+yacht <- yacht %>% mutate(X2 = as.numeric(X2))
+
+yacht <- yacht %>% rename(y = X7)
+```
+
+## Preprocessing
+
+Let's check the summary of the variables in the data set again.  
+
+```{r, check_yacht_summary}
+yacht %>% summary()
+```
+
+Some of the inputs are small decimal point values, while other inputs range several whole number digits. For example, the mean of `X1` is ten times larger than the mean of `X6`. It can be useful for interpretation purposes if the inputs are all in the same scale. Thus, we will **standardize** the inputs before fitting the linear models.  
+
+We also saw in the EDA report that we should consider transforming the response. We will continue to use the natural log transformation. The further aid in the intepretation of the coefficients of the linear models, we will also **standardize** the transformed response. This way all inputs and the response for the model will have mean zero and variance one. The transformations are performed with `dplyr::mutate()` and the standardization is performed with the base `R` `scale()` function in the code chunk below.  
+
+```{r, make_ready_data}
+ready_df <- yacht %>% 
+  mutate(log_y = log(y)) %>% 
+  select(X1:X6, log_y) %>% 
+  scale(center = TRUE, scale = TRUE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+
+ready_df %>% glimpse()
+```
+
+As a check, the mean and variance of the columns are calculated via `purrr` below.    
+
+```{r, check_ready_summary}
+ready_df %>% purrr::map_dbl(~signif(mean(.), digits = 2)) 
+
+ready_df %>% purrr::map_dbl(var)
+```
+
+Lastly, the standardized transformed response is plotted with respect to each standardized input as faceted scatter plots below.  
+
+```{r, viz_input_output_scatter_1}
+ready_df %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(starts_with("X")) %>% 
+  ggplot(mapping = aes(x = value, y = log_y)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~name) +
+  theme_bw()
+```
+
+## Linear models
+
+We are now going to fit multiple linear models of varying complexity. We will start with simple models which use just a small number of features (also known as *predictors*) and conclude with relatively complex models with many features.  
+
+### Intercept-only
+
+The simplest possible model is an intercept-only or **constant** model. This model has no trends with respect to any input. It will serve as the simplest possible case and benchmark performance of any other model.  
+
+The base `R` `lm()` function fits **l**inear **m**odels. We can use the formula interface where the response to the left of the `~` operator and all features (predictors) are to the right of the `~` operator. The intercept only model has a *constant* feature and so the number `1` is used to the right of the tilde.  
+
+```{r, fit_mod_00}
+mod_00 <- lm( log_y ~ 1, data = ready_df)
+
+mod_00 %>% class()
+```
+
+As we see above `mod_00` is an `lm` object. The `summary()` function applied to an `lm` class object provides relevant summary information about the coefficients and model performance specific to linear models. The summary for the intercept-only model is shown below.  
+
+```{r, summary_mod_00}
+mod_00 %>% summary()
+```
+
+### X6 only
+
+Based on our exploratory visualizations, the `X6` input is the most important. Thus, we should first consider predictive models that have features which only depend on `X6`. The simplest such model is one where the mean trend linearly depends on `X6`. We are therefore fitting the following model:  
+
+$$ 
+\mathrm{trend}_{n} = \beta_0 + \beta_1 \times X_{n,6}
+$$
+
+The $\mathrm{trend_{n}}$ term in the equation above is the average of the standardized log-transformed response for the $n$-th observation. Notice that if $\beta_1$ is zero, the trend is a constant and does not depend on `X6`. Thus, we can examine the $\beta_1$ coefficient after fitting the model to get a sense of if the feature matters or not.  
+
+The formula interface does not require us to include the constant or *intercept* term when we have predictors in the model. With a single input the only term on the right hand side of `~` in the formula interface is therefore the input of interest, `X6`. The simple linear relationship linear model is fit in the code chunk below, and the summary is displayed to the screen.  
+
+```{r, fit_mod_01}
+mod_01 <- lm( log_y ~ X6, data = ready_df)
+
+mod_01 %>% summary()
+```
+
+The summary print out gives us a quick glimpse of the *statistical significance* of the features (predictors) in the model. We can read the p-value (`Pr(>|t|)`) or look at the significance codes (the asteriks) to see if a feature is statistically significant. As we can see above the `X6` feature is considered to be statistically significant!  
+
+However, I don't like to look at tables. Instead I prefer to visualize the coefficient summaries. We could create the figure manually in `ggplot2` using the coefficient estimate and the standard error. The `broom::tidy()` function extracts the coefficient summaries and puts them in an easy to work with "tidy" format.  
+
+```{r, tidy_mod_01_coef}
+mod_01 %>% broom::tidy()
+```
+
+We can approximate the 95% confidence interval on the coefficients by adding $\pm$2 times the standard error to the coefficient estimates.  
+
+```{r, tidy_mod_01_coef_confint}
+mod_01 %>% 
+  broom::tidy() %>% 
+  select(term, estimate, std.error) %>% 
+  mutate(lwr = estimate - 2 * std.error,
+         upr = estimate + 2 * std.error) %>% 
+  select(term, lwr, estimate, upr)
+```
+
+The true 95% confidence interval can be included if we'd like in the `broom::tidy()` call, which saves us a step.  
+
+```{r, true_mod_01_coef_confint}
+mod_01 %>% 
+  broom::tidy(conf.int = TRUE, conf.level = 0.95) %>% 
+  select(term, conf.low, estimate, conf.high)
+```
+
+We can then visualize coefficient summaries in `ggplot2` using `geom_linerange()` to represent the confidence intervals!  
+
+```{r, viz_mod_01_coef_conf_ggplot}
+mod_01 %>% 
+  broom::tidy(conf.int = TRUE, conf.level = 0.95) %>% 
+  select(term, conf.low, estimate, conf.high) %>% 
+  ggplot(mapping = aes(x = term)) +
+  geom_hline(yintercept = 0, color = 'grey', linetype = 'dashed') +
+  geom_linerange(mapping = aes(ymin = conf.low, ymax = conf.high,
+                               group = term),
+                 size = 1.) +
+  geom_point(mapping = aes(y = estimate,
+                           group = term),
+             size = 3) +
+  theme_bw()
+```
+
+However, the `coefplot::coefplot()` function takes care of all of these steps for us! Can you tell from the plot below that `X6` is statistically significant?  
+
+```{r, coef_mod_01}
+mod_01 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Let's now a quadratic relationship between the standardized log-transformed response and `x6`. The trend function is therefore:  
+
+$$ 
+\mathrm{trend}_{n} = \beta_0 + \beta_1 \times X_{n,6} + \beta_2 \times X_{n,6}^{2}
+$$
+
+To raise an input to a power in the formula interface, we need to use the `I()` function. This means the formula will not exactly read as the mathematical expression, but it is just the requirements of the formula interface.  
+
+```{r, fit_mod_02}
+mod_02 <- lm( log_y ~ X6 + I(X6^2), data = ready_df )
+
+mod_02 %>% summary()
+```
+
+Again, we can look at the summary report to check if the features are statistically significant, or we can visualize the coefficient summaries.  
+
+```{r, coefplot_mod_02}
+mod_02 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Since the quadratic term is statistically significant, let's also consider a cubic trend:  
+
+$$ 
+\mathrm{trend}_{n} = \beta_0 + \beta_1 \times X_{n,6} + \beta_2 \times X_{n,6}^{2} + \beta_3 \times X_{n,6}^{3}
+$$
+
+The cubic relationship linear model is fit in the and the summary report displayed in the code chunk below.  
+
+```{r, fit_mod_03}
+mod_03 <- lm( log_y ~ X6 + I(X6^2) + I(X6^3), data = ready_df )
+
+mod_03 %>% summary()
+```
+
+The coefficient summaries for the cubic relationship model are displayed below.  
+
+```{r, coefplot_mod_03}
+mod_03 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Something that is very important to highlight is that as we add more and more terms to our model the **complexity** is increasing! Have you also been checking the R-squared for the model as we add more terms? We will come back to the issue of model performance and complexity later on.  
+
+We can continue to add complexity to our *polynomial model* if we would like. However, I rarely go above a cubic model. If I want to add further complexity I tend to use **natural splines** to smooth out the trends instead of higher order polynomials.  
+
+The code chunk below fits a 5 degree-of-freedom (DOF) natural spline and displays the model summary.  
+
+```{r, fit_mod_04}
+mod_04 <- lm( log_y ~ splines::ns(X6, 5), data = ready_df )
+
+mod_04 %>% summary()
+```
+
+The coefficient summaries for the 5 DOF natural spline is shown below.  
+
+```{r, coefplot_mod_04}
+mod_04 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Finally, let's try a 9 DOF natural spline.  
+
+```{r, fit_mod_05}
+mod_05 <- lm( log_y ~ splines::ns(X6, 9), data = ready_df )
+
+mod_05 %>% summary()
+```
+
+Visualize the coefficient summaries below.  
+
+```{r, coefplot_mod_05}
+mod_05 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+### Include X1 and X4
+
+Now that we have multiple models focused on what visually seemed to be the most important input, let's add in additional input features. Based on the EDA, we will first add in features associated with `X1` and `X4`.  
+
+Let's first include **additive** linear relationships for all three inputs.  
+
+```{r, fit_mod_06}
+mod_06 <- lm( log_y ~ X1 + X4 + X6, data = ready_df )
+
+mod_06 %>% summary()
+```
+
+Statistical significance is even more interesting to consider when we have multiple inputs in the model. We are assessing if including the additional features capture remaining variation in the response. Again, we can examine the p-values or visualize the coefficient summaries to get a sense of the statistical significance of the features. Which of the features appears to be the least significant of the three?  
+
+```{r, coefplot_mod_06}
+mod_06 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Let's continue to use the additive terms, but try the quadratic relationship with `X6`.  
+
+```{r, fit_mod_07}
+mod_07 <- lm( log_y ~ X1 + X4 + X6 + I(X6^2), data = ready_df )
+
+mod_07 %>% summary()
+```
+
+
+The coefficient summaries are visualized below.  
+
+```{r, coefplot_mod_07}
+mod_07 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+
+In addition to additive features we can also consider **interactions**. An interaction represents a multiplication between inputs. For example, a model with an interaction between `X1` and `X6` but is additive with `X4` is:  
+
+$$ 
+\mathrm{trend}_{n} = \beta_0 + \beta_1 \times X_{n,1} + \beta_2 \times X_{n,2} + \beta_3 \times X_{n,6} + \beta_4 \times X_{n,1} \times X_{n,6}
+$$  
+
+Interactions can be difficult to interpret, but they are powerful modeling tool that we should consider. The interaction effectively allows the relationship between the response and a feature to **depend** on another feature. Thus, the model written above can be described as the trend with respect to `X6` depends on `X1`!  
+
+The `*` operator in the formula interfact will create the **main** effect terms and the **interaction** term for us. It therefore serves as a convenient short-cut.  
+
+```{r, fit_mod_08}
+mod_08 <- lm( log_y ~ X1 * X6 + X4, data = ready_df )
+
+mod_08 %>% summary()
+```
+
+The coefficient summaries are displayed below. Does the interaction term appear to be statistically significant?  
+
+```{r, coefplot_mod_08}
+mod_08 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+We are not limited to considering just one interaction. We can consider multiple pairs of interactions and even higher order interactions! For example, we can include the interaction of all three inputs in the model!  
+
+```{r, fit_mod_09}
+mod_09 <- lm( log_y ~ X1 * X6 * X4, data = ready_df )
+
+mod_09 %>% summary()
+```
+
+The coefficient summaries are shown below. Are any of the interaction terms statistically significant?  
+
+```{r, coefplot_mod_09}
+mod_09 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Lastly, we can also consider the interaction of non-linear features with other features. Let's have the quadratic relationship of `X6` depend on both `X1` and `X4` **but** `X1` and `X4` will **not** interact together.  
+
+```{r, fit_mod_10}
+mod_10 <- lm( log_y ~ (X1 + X4) * (X6 + I(X6^2)), data = ready_df )
+
+mod_10 %>% summary()
+```
+
+The coefficient summaries are displayed below. Again, which terms are statistically significant?  
+
+```{r, coefplot_mod_10}
+mod_10 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+The `coefplot` package has a useful function to help compare the coefficients across multiple models. `multiplot()` identifies the same feature names used in multiple models and colors based on the model name. This allows you to examine if the influence of a feature is changing as other features are included in the model. For example, the coefficient summaries are compared across models 7 through 10 below.  
+
+```{r, multiplot_models}
+coefplot::multiplot(mod_07, mod_08, mod_09, mod_10) +
+  theme_bw() +
+  guides(linetype = 'none', shape='none')
+```
+
+### Using all inputs
+
+Let's now consider models that use all six inputs. The fundamental linear model is one with **linear additive terms**:  
+
+$$ 
+\mathrm{trend}_n = \beta_0 + \sum_{d=1}^{D=6} \left( \beta_d \times X_{n,d} \right)
+$$
+
+This is the formulation most commonly associated with linear regression. However, as you have seen in this example we are free to consider many different formulations!  
+
+When our data set only consists of the response and the inputs, the model with linear additive terms can be created easily with the short-cut `.` operator. This means we do not have to write out every single term when we have dozens of inputs. The short-cut `.` operator is used to define the model with all linear additive terms in the code chunk below.  
+
+```{r, fit_mod_11}
+mod_11 <- lm( log_y ~ ., data = ready_df )
+
+mod_11 %>% summary()
+```
+
+The coefficient summaries are visualized below. Which terms are **not** statistically significant?  
+
+```{r, coefplot_mod_11}
+mod_11 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+An important formulation that I always recommend trying (if the sample size allows it) is a model with **all pair-wise interactions**. This model does not capture non-linear relationships, but the linear slopes linearly depend on the other features. I personally feel it is a more appropriate benchmark model to use against more advanced methods like neural networks, support vector machines (SVMs), and tree based methods, than the conventional linear additive model. We can easily create the model with all pair-wise interactions with the `.` and `^` operators. The `^` operator in the formula interface represents the degree of interaction to allow. All pair-wise interactions is degree 2.  
+
+The linear model with all pair-wise interactions is fit below.  
+
+```{r, fit_mod_12}
+mod_12 <- lm( log_y ~ (.)^2, data = ready_df )
+
+mod_12 %>% summary()
+```
+
+And the coefficient summaries are presented below.  
+
+```{r, coefplot_mod_12}
+mod_12 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+We could if the sample size allows also consider all triplet interactions as well. However, for this application notice that NAs are present in the results. This is due to the number of observations associated with each triplet combination. We will **not** consider using this model because of the NAs in the estimates.  
+
+```{r, fit_mod_13}
+mod_13 <- lm( log_y ~ (.)^3, data = ready_df )
+
+mod_13 %>% summary()
+```
+
+Lastly, we will try several models involving non-linear `X6` trends. The first of these below is an additive model, but `X6` has a quadratic feature.  
+
+```{r, fit_mod_14}
+mod_14 <- lm( log_y ~ (.) + I(X6^2), data = ready_df )
+
+mod_14 %>% summary()
+```
+
+The coefficient summaries are visualized below.  
+
+```{r, coefplot_mod_14}
+mod_14 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Next, `X6` includes cubic terms.  
+
+```{r, fit_mod_15}
+mod_15 <- lm( log_y ~ (.) + I(X6^2) + I(X6^3), data = ready_df )
+
+mod_15 %>% summary()
+```
+
+The coefficient summaries are visualized below.  
+
+```{r, coefplot_mod_15}
+mod_15 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Next, a cubic `X6` relationship and linear trends of `X2`, `X3`, and `X5` interact with `X1` and `X4`.  
+
+```{r, fit_mod_16}
+mod_16 <- lm( log_y ~ (X1 + X4) * (X2 + X3 + X5 + X6 + I(X6^2) + I(X6^3)), data = ready_df )
+
+mod_16 %>% summary()
+```
+
+The coefficient summaries are displayed below.  
+
+```{r, coefplot_mod_16}
+mod_16 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+Next, let's try a natural spline with `X6`. We will use 7 degrees-of-freedom to see what happens.  
+
+```{r, fit_mod_17}
+mod_17 <- lm( log_y ~ (X1 + X4) * (X2 + X3 + X5 + splines::ns(X6, 7)), data = ready_df )
+
+mod_17 %>% summary()
+```
+
+The coefficient summaries are shown below.  
+
+```{r, coefplot_mod_17}
+mod_17 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+
+The last set of models we will try have inputs `X1` through `X5` interact with non-linear trends of `X6`.  
+
+Let's use cubic relationships for `X6`.  
+
+```{r, fit_mod_18}
+mod_18 <- lm( log_y ~ (X1 + X2 + X3 + X4 + X5) * ( X6 + I(X6^2) + I(X6^3) ), data = ready_df )
+
+mod_18 %>% summary()
+```
+
+The coefficient summaries are visualized below.  
+
+```{r, coefplot_mod_18}
+mod_18 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+And finally, let's use a natural spline with 7 degrees of freedom for `X6`.  
+
+```{r, fit_mod_19}
+mod_19 <- lm( log_y ~ (X1 + X2 + X3 + X4 + X5) * splines::ns(X6, 7), data = ready_df )
+
+mod_19 %>% summary()
+```
+
+The coefficient summaries are shown below.  
+
+```{r, coefplot_mod_19}
+mod_19 %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+## Model selection
+
+We have fit 20 models and we now must decide which model is the best! We will exclude `mod_13` and so we must decide which of the 19 models are the most appropriate.  
+
+We can extract model performance metrics using the `broom::glance()` function. However, let's first define a wrapper function so that we can include a custom name.  
+
+```{r, make_extract_metrics_func}
+extract_metrics <- function(mod, mod_name)
+{
+  broom::glance(mod) %>% 
+    mutate(model_name = mod_name)
+}
+```
+
+
+Let's now iterate over the models we fit using `purrr`.  
+
+```{r, get_model_performance_metrics}
+model_ids <- 0:19
+model_ids <- model_ids[ model_ids != 13 ]
+
+model_results <- purrr::map2_dfr(list(mod_00, mod_01, mod_02, mod_03,
+                                      mod_04, mod_05, mod_06, mod_07,
+                                      mod_08, mod_09, mod_10, mod_11,
+                                      mod_12, mod_14, mod_15, mod_16,
+                                      mod_17, mod_18, mod_19),
+                                 model_ids,
+                                 extract_metrics)
+```
+
+
+Which model is the best if we consider the performance just on the training set? For example, let's look at the R-squared value.  
+
+```{r, viz_train_mod}
+model_results %>% 
+  ggplot(mapping = aes(x = as.factor(model_name), y = r.squared)) +
+  geom_point() +
+  theme_bw()
+```
+
+The constant or intercept-only model is clearly not that useful. We already know from the EDA that there are trends in the data so it makes sense the intercept only model is worse than any other model. Let's remove the constant model and examine the training set R-squared. **Which model is the best?**  
+
+```{r, viz_train_mod_r2_no_const}
+model_results %>% 
+  filter(model_name > 0) %>% 
+  ggplot(mapping = aes(x = as.factor(model_name), y = r.squared)) +
+  geom_point(size = 4.5) +
+  theme_bw()
+```
+
+Let's consider the performance based on the complexity of the model, as represented by the degrees-of-freedom.  
+
+```{r, viz_train_mod_r2_vs_df}
+model_results %>% 
+  filter(model_name > 0) %>% 
+  ggplot(mapping = aes(x = df, y = r.squared)) +
+  geom_point(size = 4.5) +
+  theme_bw()
+```
+
+**Again which model is the best?**  
+
+### Complexity penalty metrics
+
+For those that were in INFSCI 2595, we can use information criterion metrics to penalize model performance based on the number terms in the model. Adding more terms must there "be worth it". These metrics are the AIC and BIC. The lower the AIC or BIC value, the more *general* the model is expected to be.  
+
+```{r, viz_aic_bic_results}
+model_results %>% 
+  select(model_name, df, AIC, BIC) %>% 
+  pivot_longer(c("AIC", "BIC")) %>% 
+  filter(model_name > 0) %>% 
+  ggplot(mapping = aes(x = as.factor(model_name), y = value)) +
+  geom_point(size = 4) +
+  facet_wrap(~name, scales = "free_y") +
+  theme_bw()
+```
+
+Let's consider the AIC and BIC with respect to the degrees-of-freedom.  
+
+```{r, viz_aic_bic_df}
+model_results %>% 
+  select(model_name, df, AIC, BIC) %>% 
+  pivot_longer(c("AIC", "BIC")) %>% 
+  filter(model_name > 0) %>% 
+  ggplot(mapping = aes(x = df, y = value)) +
+  geom_line(size = 1.1, color = 'grey') +
+  geom_point(size = 4) +
+  facet_wrap(~name, scales = "free_y") +
+  theme_bw()
+```
+
+The AIC and BIC metrics disagree which models are the best! That's ok! We have identified several candidates to consider for **resampling** methods like **k-fold cross-validation**. It can also be useful to examine the **predictive** differences between the models when we are not sure which model is the best.  
+

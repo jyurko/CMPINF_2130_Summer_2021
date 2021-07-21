@@ -1,0 +1,389 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 10"
+subtitle: "Regression model example - EDA"
+author: "Dr. Joseph P. Yurko"
+date: "July 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This report walks through an EDA of the UCI machine learning repository Yacht Hydrodynamics data set. Unfortunately, the UCI machine learning repository is down and so the data are downloaded from another source. Please see the [UCI machine learning repository site](https://archive-beta.ics.uci.edu/ml/datasets/243) (once it is working again) for more details.  
+
+This document does not include much discussion compared to other class examples. It contains the code, figures, and output from my EDA of the data set. This report captures my first attempt exploring the data. I include several comments and remarks about findings that surprised me, or warrant further investigation.  
+
+## Load packages
+
+We will work with the `tidyverse`.  
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+
+## Read in data
+
+The data are read in from a Github repo associated with this [Towards Data Science article](https://towardsdatascience.com/model-selection-yacht-hydrodynamics-data-set-ec0f8591e8e8). Please see the article if you would like a description of the variables in the data set. The Towards Data Science article includes some data exploration, but not as comprehensive as what I feel is required for a predictive modeling application.  
+
+The data are stored in a text file with columns separated by a white space. Rather than using `readr::read_csv()` to read in the data, the more general `readr::read_delim()` function is used
+
+```{r, read_data}
+data_url <- 'https://raw.githubusercontent.com/DanielTongAwesome/Yacht_Hydrodynamics_Model/master/yacht_hydrodynamics.data'
+
+yacht <- readr::read_delim(data_url, delim = " ", col_names = FALSE)
+```
+
+A glimpse of the data are given below.  
+
+```{r, data_glimpse}
+yacht %>% glimpse()
+```
+
+The `X2` variable is not a character vector according to the UCI machine learning repository site. Let's force convert `X2` to a numeric.  
+
+```{r, change_data_type}
+yacht <- yacht %>% mutate(X2 = as.numeric(X2))
+```
+
+
+And now check a summary of the variables.  
+
+```{r, yacht_data_summary}
+yacht %>% summary()
+```
+
+All variables are numeric as anticipated. The `readr::read_delim()` must have been "confused" based on an issue with the spacing. Let's look at the head and tail so we can manually compare to the data from the Github repo.  
+
+```{r, yacht_data_head}
+yacht %>% head()
+```
+
+
+```{r, yacht_data_tail}
+yacht %>% tail()
+```
+
+
+The data look correct!  
+
+## Counts and unique values
+
+The `summary()` function did not state that there are any missing values, but let's double check.  
+
+```{r, yahct_check_na}
+yacht %>% purrr::map_dbl(~sum(is.na(.)))
+```
+
+The `head()` and `tail()` print out revealed the various columns had the same values repeated over multiple rows. Let's check the number of unique values for each column.  
+
+```{r, yacht_check_unique}
+yacht %>% purrr::map_dbl(n_distinct)
+```
+
+The `X1` variable only has 5 unique values and `X3` has just 8 unique values! The data we are working with  correspond to the result of experiments performed on full scale yachts (ships). Such a small number of unique values seems to suggest the data are associated with a Designed Experiment. The last column, `X7`, has over 250 unique values. The `X7` column is the response of interest and so we should not be surprised that it has many distinct values. The first six columns, `X1` through `X6`, are therefore the **inputs** and `X7` is the output we wish to predict.  
+
+Let's now focus on the number of combinations of the variables. We will first check the number of rows associated with the combination of all 6 inputs. As we see below, the combination of the 6 inputs have no replications. This is unfortunate. It is preferable to replicate at least a few combinations of the input variables to get a better sense of the **measurement** and **process** variation. However, that is a topic for a class dedicated to experimental design!  
+
+```{r, yacht_check_input_combos}
+yacht %>% 
+  count(X1, X2, X3, X4, X5, X6, name = "num_rows") %>% 
+  count(num_rows)
+```
+
+Let's next look at the scatter plot between `X1` and `X3`. The `geom_count()` function is used to show the number of observations per combination. The simple scatter plot reveals some important clues about the data! Even though `X1` has 5 unique values, there appear to just be 3 "distinct" levels. There is a low at -5, a medium near -2.3, and a high at 0.  
+
+```{r, viz_yacht_input_scatter_1}
+yacht %>% 
+  ggplot(mapping = aes(x = X1, y = X3)) +
+  geom_count() +
+  theme_bw()
+```
+
+Checking the unique values of `X1` confirms that indeed there are two values very close to -2.3.  
+
+```{r, check_yacht_x1_values}
+yacht %>% 
+  count(X1)
+```
+
+
+This is important to identify because with just 3 "main" levels of the input, we are limited to the kind of relationships that we can consider with `X1`. In effect, we should focus on linear relationships between the `X1` variable and the response, `X7`.  
+
+We have the same conclusion for `X3`. Visually there appears to just be 3 "main" levels. Let's confirm by looking at the exact values below.  
+
+```{r, check_yacht_x3_values}
+yacht %>% 
+  count(X3)
+```
+
+Let's now examine `X2` and `X5`. We saw previously that they each have exactly 10 unique values. The number of observations associated with each combination of `X2` and `X5` are shown below using `geom_count()`.  
+
+```{r, viz_yacht_input_scatter_2}
+yacht %>% 
+  ggplot(mapping = aes(x = X2, y = X5)) +
+  geom_count() +
+  theme_bw()
+```
+
+As we see above, we also have relatively few "main" groups of `X5`. However, the structure is less clear than what we saw with `X1` and `X3`. I want to say from looking at the above plot the original intent was to have either 3 or 5 unique values each for `X2` and `X5`.  
+
+Lastly, let's consider the `X4` and `X6` pair of inputs. Both of these inputs have more than 10 unique values each.  
+
+```{r, viz_yacht_input_scatter_3}
+yacht %>% 
+  ggplot(mapping = aes(x = X4, y = X6)) +
+  geom_count() +
+  theme_bw()
+```
+
+The above figure seems to reveal the primary structure of the design. It looks like the experimenters were most concerned with an even grid of `X6` values between lower and upper bounds. They were also concerned with understanding the variability associated with the combination of `X6` and `X4` near the center of the `X4` range. This is a common approach for design replications. Replicate experimental conditions in the "center" of a design as best you can.  
+
+Our simple scatter plots have revealed that even though there are no replications of the 6 input combinations, that seems to be the artifact of manufacturing the full-scale yachts for the experiment. We saw that `X1`, `X2`, `X3`, and `X5` have relatively few "groups" or "clusters" of values. Perhaps the original intent was to have many replications, but variation in the manufacturing process prevented that from occuring. I have not read through the original reference papers discussing the data and the experiment. However, this is my guess based on my experience because this is a realistic situation that can occur when running real experiments!  
+
+Let's now look at all pairs of scatter plots using a pairs plot. We see that the scatter plots between `X6` and the other inputs reveals the "grid" like structure where the unique values of `X6` are repeated for different values of the other inputs. As we can see below, the highest correlation coefficient is roughly 2/3 between `X3` and `X5`. Usually, absolute correlation coefficients of 0.75 or especially 0.85 are useful thresholds identifying when we should be concerned about highly correlated inputs. As of now, it seems like we do not have to overly concerned about the input correlation structure.  
+
+```{r, viz_yahct_pairs}
+yacht %>% 
+  GGally::ggpairs(columns = 1:6,
+                  progress = FALSE) +
+  theme_bw()
+```
+
+The pairsplot reveals that `X1` and `X4` have an interesting "star"-like pattern, as confirmed below. The "star" shape looks like a cross or "+" sign. It is an important component of classic **response surface designs**. Notice that in the `geom_count()` plot below, there are exactly 14 observations for each combination of `X1` and `X4`! We saw previously that there are 14 unique values of `X6`It would be interesting to know the original intent of the design of this experiment!  
+
+```{r, viz_yahct_input_scatter_4}
+yacht %>% 
+  ggplot(mapping = aes(x = X1, y = X4)) +
+  geom_count() +
+  theme_bw()
+```
+
+Although the pairsplot included the kernel density estimates along the main diagonal, we did not focus on the input distributions in this report. We have seen that there are not only relatively few unique values for the inputs, but it seems like there are even fewer "groups" or "clusters". This occurs in many classic experimental designs and in industrial design of experiments. That was why we focused on scatter plots to examine the behavior of pairs of inputs together in this report.  
+
+## Response visualizations
+
+Now that we have explored the inputs, it's time to consider the response, `X7`. Conventionally, a response or output variable is usually denoted as `y`, instead of `x`. For that reason, let's go ahead and rename the `response` from `X7` to `y`.  
+
+```{r, rename_yacht_response_var}
+yacht <- yacht %>% rename(y = X7)
+```
+
+
+Since there are several hundred unique values, we can start with a histogram to visualize the distribution of the response `y`.  
+
+```{r, viz_yacht_response_hist}
+yacht %>% 
+  ggplot(mapping = aes(x = y)) +
+  geom_histogram(bins = 21) +
+  theme_bw()
+```
+
+The distribution is very right skewed, with a long tail to large values. If we look through the UCI site or the Towards Data Science article, the response of interest, `y`, is a type of resistance or drag variable. Therefore it makes sense that the resistance will be lower bounded at 0 (a negative resistance would mean a thrust or pushing force). Let's check the lower and upper bounds on `y` using the `summary()` function.  
+
+```{r, yacht_check_y_bounds}
+yacht %>% select(y) %>% summary()
+```
+
+The minimum value in the data set is 0.01. Thus, even though the histogram included a bin surrounding zero there are zero observations of `y` less than 0.01 in the data set. Also, we see that the mean is over 3 times larger than the median. This is an indication of the right skewness of the distribution, with the mean being "pulled" by the long tail to the right.  
+
+Let's now consider the scatter plot between the response and each input. We can visualize each response-input pair as a facet by first reshaping the data set using `pivot_longer()`.  
+
+```{r, yacht_y_vs_x_1}
+yacht %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(starts_with("X")) %>% 
+  ggplot(mapping = aes(x = value, y = y)) +
+  geom_point() +
+  facet_wrap(~name, scales = "free_x") +
+  theme_bw()
+```
+
+It's clear that the main trend or relationship in the data is the variation of `y` with respect to `x6`. It appears that `y` increases almost exponentially as `X6` increases.  
+
+Let's focus on the `y` vs `X6` relationship.  
+
+```{r, yacht_y_vs_x6_1}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 2.5, alpha = 0.5) +
+  theme_bw()
+```
+
+We saw in our input exploration that there are 14 observations for each combination of `X1` and `X4`. Let's use a facet wrap and the marker color to denote those two inputs.  
+
+```{r, yacht_y_vs_x6_2}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 2.5, alpha = 0.5,
+             mapping = aes(color = X1)) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_b() +
+  theme_bw()
+```
+
+It looks most of the `X4` values have just a single value of `X1` associated with it. Let's compare 4 specific `X4` values to check.  
+
+```{r, yacht_y_vs_x6_3}
+yacht %>% 
+  filter(X4 %in% c(3.84, 3.94, 3.99, 4.13)) %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 5.5, alpha = 0.5,
+             mapping = aes(color = as.factor(X1))) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_d("X1") +
+  theme_bw()
+```
+
+Earlier in the semester, we included linear trend lines on scatter plots via `geom_smooth()`. The default behavior of `geom_smooth()` though is to apply a non-linear smoother. Let's go ahead and include a non-linear smoother to our subset of the observations to confirm the non-linear trend of `y` with `X6`.  
+
+```{r, yacht_y_vs_x6_5}
+yacht %>% 
+  filter(X4 %in% c(3.84, 3.94, 3.99, 4.13)) %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 5.5, alpha = 0.5,
+             mapping = aes(color = as.factor(X1))) +
+  geom_smooth(formula = y ~ x,
+              mapping = aes(group = interaction(X1, X4),
+                            color = as.factor(X1))) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_d("X1") +
+  theme_bw()
+```
+
+Based on the sample size per group, the default method is LOESS, which is a local scatter plot smoother. We can use a different approach if we would like. For example, we can use a natural spline. We are free to choose the degrees-of-freedom (DOF) of the spline. The code chunk below uses a 3 DOF natural spline.  
+
+```{r, yacht_y_vs_x6_6}
+yacht %>% 
+  filter(X4 %in% c(3.84, 3.94, 3.99, 4.13)) %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 5.5, alpha = 0.5,
+             mapping = aes(color = as.factor(X1))) +
+  geom_smooth(formula = y ~ splines::ns(x, 3),
+              method = lm,
+              mapping = aes(group = interaction(X1, X4),
+                            color = as.factor(X1))) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_d("X1") +
+  theme_bw()
+```
+
+The code chunk below uses a more complex natural spline with 7 DOF instead of 3.  
+
+```{r, yacht_y_vs_x6_7}
+yacht %>% 
+  filter(X4 %in% c(3.84, 3.94, 3.99, 4.13)) %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(size = 5.5, alpha = 0.5,
+             mapping = aes(color = as.factor(X1))) +
+  geom_smooth(formula = y ~ splines::ns(x, 7),
+              method = lm,
+              mapping = aes(group = interaction(X1, X4),
+                            color = as.factor(X1))) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_d("X1") +
+  theme_bw()
+```
+
+However, the LOESS method is quite good, especially for exploring non-linear trends. Let's apply the LOESS method to smooth the trend of `y` with respect to `X6` for each combination of `X4` and `X1`.  
+
+```{r, yacht_y_vs_x6_8}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_point(alpha = 0.5,
+             mapping = aes(color = as.factor(X1))) +
+  geom_smooth(formula = y ~ x,
+              mapping = aes(group = interaction(X1, X4),
+                            color = as.factor(X1))) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_colour_viridis_d("X1") +
+  theme_bw()
+```
+
+It seems like we have essentially identified the major trends in the data, just through visualization!  
+
+### Modeling considerations
+
+The visualizations seem to have found the key trends of interest. However, in a formal project we need to quantify those findings. For example, we might be interested in identifying which of the 6 inputs dominate the response trendWe could consider modeling `y` as a function of the 6 inputs. However, fitting a model by minimizing the Sum of Squared Errors (SSE), and thus using OLS would not be appropriate in this case. The response has a physical lower bound of zero. We clearly see the skewed behavior, and the level of variation is **not** constant as `y` increases. The variability of `y` increases as `y` increases! We can confirm this is the case by summarizing the distribution of `y` for each unique value of `X6` with boxplots.  
+
+```{r, yacht_y_xs_x6_box}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = y)) +
+  geom_boxplot(mapping = aes(group = X6)) +
+  theme_bw()
+```
+
+OLS assumes that the variability of the response *around a mean trend* is constant. Clearly that is not the case here! The response variability is **not** constant in this application. Although this seems like it would prevent us from using OLS, we can consider **transforming** the response to *stabalize* the variation. A common transformation to apply to lower bounded and highly skewed responses is the natural log transformation. The code chunk below uses boxplots to summarize the distribution of `log(y)` for each unique value of `X6`.  
+
+```{r, yacht_logy_vs_x6_box}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = log(y))) +
+  geom_boxplot(mapping = aes(group = X6)) +
+  theme_bw()
+```
+
+As we see above, the median trend looks more linear than what we saw with the original `y` response. The natural log transformation "stretches" very small values close to zero and "compresses" very large values away from zero. The variation of `log(y)` still does not seem to be roughly constant as `log(y)` changes. However, we should consider the other inputs in the data set! Let's facet by `X1`.  
+
+```{r, yacht_logy_vs_x6_x1_box}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = log(y))) +
+  geom_boxplot(mapping = aes(group = X6)) +
+  facet_wrap(~X1, labeller = "label_both") +
+  theme_bw()
+```
+
+And lastly, let's consider the influence of `X4` and `X1` on the trend of `log(y)` with respect to `X6`.  
+
+```{r, yacht_logy_x6_2}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = log(y))) +
+  geom_point(mapping = aes(color = as.factor(X1)),
+             alpha = 0.5) +
+  facet_wrap(~X4, labeller = "label_both") +
+  scale_color_viridis_d("X1") +
+  theme_bw()
+```
+
+Let's examine the influence of `X4` on the linear relationship between `log(y)` and `X6`, while ignoring `X1`. Rather than working with each unique value of `X4`, let's discretize `X4` based on its quantiles. The behavior at the minimum boun of `X6` appears to be missed below. The influence of `X4` on the linear trend between `log(y)` and `X6` also appears rather weak, based on the visualization below.  
+
+```{r, yacht_logy_x6_3}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = log(y))) +
+  geom_point(mapping = aes(color = cut(X4, 
+                                       breaks = quantile(X4),
+                                       include.lowest = TRUE)),
+             alpha = 0.5) +
+  geom_smooth(formula = y ~ x,
+              method = lm,
+              mapping = aes(color = cut(X4, 
+                                       breaks = quantile(X4),
+                                       include.lowest = TRUE))) +
+  scale_color_viridis_d("X4") +
+  theme_bw()
+```
+
+Lastly, let's facet by `X1` to consider the interaction of `X4` and `X1` on the relationship of `log(y)` with respect to `X6`.  
+
+```{r, yahct_logy_x6_4}
+yacht %>% 
+  ggplot(mapping = aes(x = X6, y = log(y))) +
+  geom_point(mapping = aes(color = cut(X4, 
+                                       breaks = quantile(X4),
+                                       include.lowest = TRUE)),
+             alpha = 0.5) +
+  geom_smooth(formula = y ~ x,
+              method = lm,
+              mapping = aes(color = cut(X4, 
+                                       breaks = quantile(X4),
+                                       include.lowest = TRUE))) +
+  facet_wrap(~X1, labeller = "label_both") +
+  scale_color_viridis_d("X4") +
+  theme_bw()
+```
+
+## Conclusions
+
+Trying out these series of exploratory visualizations have provided an example set of inputs we should especially focus on when we fit predictive models. It seems that `X6` is the most important input. But we should also see if `X1`, and `X4` influence the behavior. We cannot try overly complex relationships for `X1`, `X2`, and `X3` because the effective number of unique "clusters" appears relatively low.  
