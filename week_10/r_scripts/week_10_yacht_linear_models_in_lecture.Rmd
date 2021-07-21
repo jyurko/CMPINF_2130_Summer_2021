@@ -1,0 +1,337 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 10"
+subtitle: 'Working with linear models'
+author: "Dr. Joseph P. Yurko"
+date: "7/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+We will use `tidyverse`, base `R`, and `coefplot`, and `broom`.  
+
+```{r, load_packages}
+library(tidyverse)
+
+library(coefplot)
+```
+
+## Read data
+
+```{r, read_yacht_data}
+data_url <- "https://raw.githubusercontent.com/DanielTongAwesome/Yacht_Hydrodynamics_Model/master/yacht_hydrodynamics.data"
+
+yacht <- readr::read_delim(data_url, delim = " ", col_names = FALSE)
+```
+
+## Clean data
+
+```{r, clean_data}
+yacht <- yacht %>% mutate(X2 = as.numeric(X2))
+
+yacht <- yacht %>% rename(y = X7)
+```
+
+
+Check with a summary.  
+
+```{r, check_data_summary}
+yacht %>% summary()
+```
+
+## Preprocess
+
+Log transform the response, standardize all variables in the data.  
+
+```{r, make_the_data_ready}
+ready_df <- yacht %>% 
+  mutate(log_y = log(y)) %>% 
+  select(X1:X6, log_y) %>% 
+  scale(center = TRUE, scale = TRUE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+
+ready_df %>% glimpse()
+```
+
+Let's check by calculating the mean and variance per column.  
+
+```{r, check_mean_column}
+ready_df %>% purrr::map_dbl(mean)
+```
+
+```{r, check_var_column}
+ready_df %>% purrr::map_dbl(var)
+```
+
+Check the variables with a scatter plot of the response vs each input.  
+
+```{r, check_y_vs_x}
+ready_df %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(starts_with("X")) %>% 
+  ggplot(mapping = aes(x = value, y = log_y)) +
+  geom_point(alpha = 0.5) +
+  facet_wrap(~name) +
+  theme_bw()
+```
+
+## Linear models
+
+### Linear additive terms
+
+The conventional "linear regression" model.  
+
+```{r, fit_mod_a}
+fit_a <- lm( log_y ~ ., data = ready_df)
+```
+
+Summarize the model with `summary()`.  
+
+```{r, fit_a_summary}
+fit_a %>% summary()
+```
+
+Use `coefplot()` to visualize the coefficient summaries for the model.  
+
+```{r, coefplot_fit_a}
+fit_a %>% coefplot() + theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+### All-pair-wise interactions
+
+```{r, fit_mod_b}
+fit_b <- lm( log_y ~ (.)^2, data = ready_df)
+```
+
+Print the summary.  
+
+```{r, fit_b_summary_show}
+fit_b %>% summary()
+```
+
+Visualize the coefficient summaries.  
+
+```{r, coefplot_fit_b}
+fit_b %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+The `coefplot` allows us to directly compare coefficients across models.  
+
+```{r, compare_coefplot_multiplot}
+coefplot::multiplot(fit_a, fit_b) + theme_bw() +
+  guides(linetype = 'none', shape='none')
+```
+
+### Triplet interactions
+
+```{r, fit_mod_c}
+fit_c <- lm( log_y ~ (.)^3, data = ready_df)
+```
+
+But check the summary...  
+
+```{r, fit_c_summary}
+fit_c %>% summary()
+```
+
+### non-linear trends
+
+Try a model with cubic trend with respect to `X6`.  
+
+```{r, fit_mod_d}
+fit_d <- lm( log_y ~ (.) + I(X6^2) + I(X6^3), data = ready_df)
+```
+
+Check the summary.  
+
+```{r, fit_d_summary_check}
+fit_d %>% summary()
+```
+
+Visualize the coefficient summaries.  
+
+```{r, coefplot_fit_d}
+fit_d %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+### More models
+
+```{r, fit_mod_e}
+fit_e <- lm( log_y ~ (X1 + X2 + X3 + X4 + X5) * splines::ns(X6, 5), data = ready_df)
+```
+
+```{r, check_fit_e_summary}
+fit_e %>% summary()
+```
+
+```{r, coefplot_fit_e}
+fit_e %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+One more model.  
+
+```{r, fit_mod_f}
+fit_f <- lm( log_y ~ (X1 + X4) * (X2 + X3 + X5 + splines::ns(X6, 5)), data = ready_df)
+```
+
+```{r, check_fit_f_summary}
+fit_f %>% summary()
+```
+
+```{r, coefplot_fit_f}
+fit_f %>% 
+  coefplot() +
+  theme_bw() +
+  guides(color = 'none', linetype = 'none', shape='none')
+```
+
+## Model selection
+
+How do we select the best model?  
+
+Look at the model fits via **predicted vs observed** plot. Include the confidence interval.  
+
+```{r, model_fit_viz_f}
+fit_f %>% 
+  broom::augment(data = ready_df, se_fit = TRUE) %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = log_y, y = .fitted)) +
+  geom_linerange(mapping = aes(ymin = .fitted - 2*.se.fit,
+                               ymax = .fitted + 2*.se.fit,
+                               group = rowid)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  coord_equal() +
+  theme_bw()
+```
+
+Include the **prediction interval** instead.  
+
+```{r, model_fit_viz_f_predint}
+fit_f %>% 
+  broom::augment(data = ready_df, se_fit = TRUE, interval = 'prediction') %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = log_y, y = .fitted)) +
+  geom_linerange(mapping = aes(ymin = .lower,
+                               ymax = .upper,
+                               group = rowid),
+                 color = 'orange') +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  coord_equal() +
+  theme_bw()
+```
+
+Predicted vs observed for a simpler model.  
+
+```{r, model_fit_viz_a_predint}
+fit_a %>% 
+  broom::augment(data = ready_df, se_fit = TRUE, interval = 'prediction') %>% 
+  tibble::rowid_to_column() %>% 
+  ggplot(mapping = aes(x = log_y, y = .fitted)) +
+  geom_linerange(mapping = aes(ymin = .lower,
+                               ymax = .upper,
+                               group = rowid),
+                 color = 'orange') +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  coord_equal() +
+  theme_bw()
+```
+
+Combine the behavior of the two models.  
+
+```{r, model_fit_via_aand_f}
+fit_f %>% 
+  broom::augment(data = ready_df, se_fit = TRUE, interval = 'prediction') %>% 
+  tibble::rowid_to_column() %>% 
+  select(rowid, log_y, .fitted, .lower, .upper) %>% 
+  mutate(model_name = "f") %>% 
+  bind_rows(fit_a %>% 
+  broom::augment(data = ready_df, se_fit = TRUE, interval = 'prediction') %>% 
+  tibble::rowid_to_column() %>% 
+  select(rowid, log_y, .fitted, .lower, .upper) %>% 
+  mutate(model_name = "a")) %>% 
+  ggplot(mapping = aes(x = log_y, y = .fitted)) +
+  geom_linerange(mapping = aes(ymin = .lower,
+                               ymax = .upper,
+                               group = interaction(rowid, model_name)),
+                 color = 'orange') +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  facet_wrap(~model_name) +
+  coord_equal() +
+  theme_bw()
+```
+
+Let's extract the R-squared for each model.  
+
+```{r, make_extract_function}
+extract_metrics <- function(mod, mod_name)
+{
+  broom::glance(mod) %>% 
+    mutate(model_name = mod_name)
+}
+```
+
+Extract the performance metrics for each of the models.  
+
+```{r, get_the_perform_metrics}
+model_results <- purrr::map2_dfr(list(fit_a, fit_b, fit_d, fit_e, fit_f),
+                                 c('a', 'b', 'd', 'e', 'f'),
+                                 extract_metrics)
+```
+
+Check the structure.  
+
+```{r, check_glimpse_results}
+model_results %>% glimpse()
+```
+
+Visualize R-squared for each model.  
+
+```{r, viz_r_squared_dot}
+model_results %>% 
+  ggplot(mapping = aes(x = model_name, y = r.squared)) +
+  geom_point(size = 5.5) +
+  theme_bw()
+```
+
+Look at the r-squared vs the degrees-of-freedom.  
+
+```{r, viz_r_squared_df}
+model_results %>% 
+  ggplot(mapping = aes(x = df, y = r.squared)) +
+  geom_point(size = 7) +
+  geom_text(mapping = aes(label = model_name),
+            color = 'white') +
+  theme_bw()
+```
+
+AIC and BIC - information criterion - that penalize performance based on the number of parameters.  
+
+```{r, viz_aic_bic_model}
+model_results %>% 
+  select(model_name, AIC, BIC, df) %>% 
+  pivot_longer(c("AIC", "BIC")) %>% 
+  ggplot(mapping = aes(x = model_name, y = value)) +
+  geom_point(size = 5.5) +
+  facet_wrap(~name, scales = "free_y") +
+  theme_bw()
+```
+
+
