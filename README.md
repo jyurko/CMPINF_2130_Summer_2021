@@ -80,3 +80,17 @@ In-class programming examples are light on comments and discussion text. Please 
 * Demonstration R Shiny apps:
   * Explore old faithful data set with histograms, scatter plots, and density estimates
   * Explore iris data set with user dynamic control of scatter plot x, y, and color aesthetics
+
+## Week 10
+* Quick intro to text analylsis with tidytext
+  * one-token-per-row format: word and bigram
+  * Visualizing word counts with bar charts
+  * Visualizing word-relationships with network graphs via ggraph and tidygraph
+* Quick intro to maps (spatial data)
+  * Organizing map data as boundary points of a polygon  
+  * Visualizing countries, states, and counties with geom_polygon()  
+  * Intro to Simple Features and the sf package and working with geom_sf()
+  * Interactive maps with tmap
+* Intro to visualizing models
+  * Linear model coefficient plots with coefplot  
+  * Comparing regression models
