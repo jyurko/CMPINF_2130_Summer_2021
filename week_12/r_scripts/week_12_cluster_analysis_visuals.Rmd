@@ -1,0 +1,544 @@
+---
+title: "CMPINF 2130 Summer 2021 - Week 12"
+subtitle: "Visualizing cluster analysis results"
+author: "Dr. Joseph P. Yurko"
+date: "August 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+Although we did not discuss cluster analysis in CMPINF 2130, most of the graphics associated with visualizing cluster analysis results are extensions of the figures we have discussed!  
+
+Let's see how to visualize KMeans clustering and Hierarchical clustering results. We will use the `tidyverse`, `GGally`, and `factoextra` in this report. If you do not have `factoextra`, please download and install it before running the code chunks in this report. We will also use `cowplot` to help arrange some figures, as well.  
+
+Start out loading in `tidyverse` below. We will load in other packages later.  
+
+```{r, load_tidyverse_pkg}
+library(tidyverse)
+```
+
+## Load Wine data
+
+We will use the wine data set from the UCI machine learning repository. We used this data set in CMPINF 2100 as well.  
+
+```{r, load_wine}
+wine_url <- "http://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data"
+
+wine <- readr::read_csv(wine_url,
+                        col_names = c("Cultivar", "Alcohol", "Malic_acid",
+                                      "Ash", "Alcalinity_of_ash",
+                                      "Magnesium", "Total_phenols",
+                                      "Flavanoids", "Nonflavanoid_phenols",
+                                      "Proanthocyanin", "Color_intensity",
+                                      "Hue", "OD280_OD315_of_diluted_wines",
+                                      "Proline"))
+```
+
+A glimpse of the `wine` tibble is below.  
+
+```{r, show_wine_glimpse}
+wine %>% glimpse()
+```
+
+### Basic exploration
+
+Check the number of missings.  
+
+```{r, check_wine_missings}
+wine %>% purrr::map_dbl(~sum(is.na(.)))
+```
+
+Check the number of unique values per column.  
+
+```{r, check_wine_unique}
+wine %>% purrr::map_dbl(n_distinct)
+```
+
+The `Cultivar` variable is actually categorical even though it is a numeric data type.  
+
+```{r, check_cultivar_counts}
+wine %>% 
+  ggplot(mapping = aes(x = Cultivar)) +
+  geom_bar() +
+  theme_bw()
+```
+
+Histograms for the continuous variables in the data set.  
+
+```{r, viz_wine_hist}
+wine %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid", "Cultivar")) %>% 
+  ggplot(mapping = aes(x = value)) +
+  geom_histogram(bins = 25) +
+  facet_wrap(~name, scales = "free") +
+  theme_bw() +
+  theme(axis.text.y = element_blank())
+```
+
+Some of the variables have very different scales!  
+
+Check the correlations between the variables.  
+
+```{r, viz_wine_corrplot}
+wine %>% 
+  select(-Cultivar) %>% 
+  cor() %>% 
+  corrplot::corrplot(method = 'square', type = 'upper', tl.cex = 0.25)
+```
+
+Check the correlation coefficient by `Cultivar` group.  
+
+```{r, viz_wine_corrr_group}
+wine %>% 
+  group_by(Cultivar) %>% 
+  tidyr::nest() %>% 
+  mutate(cor_wf = purrr::map(data, corrr::correlate, quiet = TRUE, diagonal=1),
+         cor_lf = purrr::map(cor_wf, corrr::stretch)) %>% 
+  select(Cultivar, cor_lf) %>% 
+  tidyr::unnest(cor_lf) %>% 
+  ungroup() %>% 
+  ggplot(mapping = aes(x = x, y = y)) +
+  geom_tile(mapping = aes(fill = r),
+            color = 'white') +
+  # geom_text(mapping = aes(label = round(r,2))) +
+  facet_wrap(~Cultivar, labeller = "label_both") +
+  scale_fill_gradient2('corr',
+                       low = 'red',
+                       mid = 'white',
+                       high = 'navyblue',
+                       midpoint = 0,
+                       limits = c(-1, 1)) +
+  labs(x='', y ='') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size=5.5))
+  
+```
+
+## Cluster analysis
+
+### Preprocessing
+
+Before clustering the observations together, we should standardize the numeric variables. We do not want the natural units to dominate the clustering. Standardizing enforces that all variables have unit variance. Also, we are interested in the numeric variables, not the categorical variable. We will remove `Cultivar` from the data set.  
+
+```{r, make_ready_data}
+wine_df <- wine %>% 
+  select(-Cultivar) %>% 
+  as.data.frame() %>% 
+  scale(center = TRUE, scale = TRUE) %>% 
+  as.data.frame() %>% tibble::as_tibble()
+```
+
+
+Let's check the distributions with violin and boxplots.  
+
+```{r, viz_stan_variables_box}
+wine_df %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c("rowid")) %>% 
+  ggplot(mapping = aes(y = name, x = value)) +
+  geom_violin(fill = 'grey') +
+  geom_boxplot(fill = NA, color = 'black', size = 1.05) +
+  theme_bw()
+```
+
+### KMeans clustering
+
+Let's try two clusters.  
+
+```{r, run_k2}
+set.seed(2130)
+
+wine_k2 <- kmeans(x = wine_df, centers = 2, iter.max = 50, nstart = 25)
+
+wine_k2 %>% glimpse()
+```
+
+The cluster assignments are stored in the `$cluster` field.  
+
+```{r, check_k2_clusters_2}
+wine_k2$cluster %>% head()
+```
+
+We could visualize the cluster results via a pairsplot.  
+
+```{r, viz_k2_clusters_res}
+wine %>% 
+  mutate(k2 = as.character(wine_k2$cluster)) %>% 
+  GGally::ggpairs(columns = 2:ncol(wine), progress = FALSE,
+                  mapping = aes(color = k2)) +
+  theme_bw()
+```
+
+Way too many plots to look at! Instead, let's perform dimensionality reduction with Principal Components Analysis (PCA) and look at the cluster results in the PC-space!  
+
+### PCA
+
+We will execute PCA with the standardized numeric features. If we did not use the standardized variables, the variable with the largest natural variation would be directly associated with PC-1. We instead want the first PC to represent "more interesting" levels of variation than just based on the natural units of the variables.  
+
+The `prcomp()` function includes an argument `.scale`. If set to `TRUE` the data will be standardized. Thus, we do not need to first pre-process the data set.  
+
+```{r, run_wine_pca}
+wine_pca <- prcomp(wine %>% select(-Cultivar) %>% as.data.frame(),
+                   scale. = TRUE)
+
+wine_pca %>% glimpse()
+```
+
+The PC scores are in the `$x` field. What happens to the variation of the PC score as the PC number increases?  
+
+```{r, viz_pc_score_box}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c('rowid')) %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(name, "\\d+"))) %>% 
+  ggplot(mapping = aes(x = pc_id, y = value)) +
+  geom_violin(fill = 'grey',
+              mapping = aes(group = pc_id)) +
+  geom_boxplot(mapping = aes(group = pc_id),
+               fill = NA, color = 'black') +
+  labs(x = "PC", y = "PC score") +
+  theme_bw()
+```
+
+Calculate the variance of each PC score.  
+
+```{r, viz_pcscore_var}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c('rowid')) %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(name, "\\d+"))) %>% 
+  ggplot(mapping = aes(x = pc_id, y = value)) +
+  stat_summary(fun = var,
+               geom = 'line', size = 1.2) +
+  stat_summary(fun = var,
+               geom = 'point', size = 3.5) +
+  labs(x = "PC", y = "PC score variance") +
+  theme_bw()
+```
+
+Let's visualize the histogram of the first 4 PC scores.  
+
+```{r, viz_pcscore_hist}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% 
+  tibble::rowid_to_column() %>% 
+  pivot_longer(!c('rowid')) %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(name, "\\d+"))) %>% 
+  filter(pc_id < 5) %>% 
+  ggplot(mapping = aes(x = value)) +
+  geom_histogram(bins = 21) +
+  facet_wrap(~pc_id, labeller = "label_both", scales = "free_y") +
+  theme_bw()
+```
+
+Let's now look at a scatter plot between the first two PCs. First, a glimpse of the scores is shown below.  
+
+```{r, check_pcscore_glimpse}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% glimpse()
+```
+
+And next the scatter plot is created.  
+
+```{r, viz_pscore_scatter}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% 
+  ggplot(mapping = aes(x = PC1, y = PC2)) +
+  geom_point(size = 3.5) +
+  theme_bw()
+```
+
+The cluster results can then be visualized in the PC space!  
+
+```{r, viz_pcscore_cluster_res}
+wine_pca$x %>% as.data.frame() %>% tibble::as_tibble() %>% 
+  mutate(k2 = as.character(wine_k2$cluster)) %>% 
+  ggplot(mapping = aes(x = PC1, y = PC2)) +
+  geom_point(size = 3.5,
+             mapping = aes(color = k2)) +
+  ggthemes::scale_color_colorblind() +
+  theme_bw()
+```
+
+### Streamlined figures
+
+This seems like a lot of work to visualize the results. The `factoextra` package however can really streamline visualizing cluster analysis results. I use `factoextra` in my own work. I highly recommend it to learn more about working with high dimensional data. Please see it's [CRAN page](https://cran.r-project.org/web/packages/factoextra/index.html) and [website](https://rpkgs.datanovia.com/factoextra/index.html) for more information.  
+
+```{r, load_factoextra_pkg}
+library(factoextra)
+```
+
+The KMeans cluster analysis results can be easily visualized with:  
+
+```{r, viz_k2_again_facto}
+fviz_cluster(wine_k2, data = wine_df) +
+  theme_bw()
+```
+
+The cluster analysis visualization is shown in the PC space! The cluster centers are marked! The clusters are denoted by colors **and** a *convex hull* is drawn around the perimeter of the cluster.  
+
+We can turn off the observation IDs:  
+
+```{r, viz_k2_again_facto_2}
+fviz_cluster(wine_k2, geom='point', data = wine_df) +
+  theme_bw()
+```
+
+Can focus on other PCs with the `axes` argument. For example, if we would like to look at the cluster results in terms of PC-2 and PC-4.  
+
+```{r, viz_k2_again_facto_3}
+fviz_cluster(wine_k2, geom='point', axes=c(2, 4), data = wine_df) +
+  theme_bw()
+```
+
+We can try out more clusters if we would like. For example, let's try 3, 4, and 5 clusters.  
+
+```{r, run_kmeans_more_times}
+set.seed(2130)
+wine_k3 <- kmeans(x = wine_df, centers = 3, iter.max = 50, nstart = 25)
+wine_k4 <- kmeans(x = wine_df, centers = 4, iter.max = 50, nstart = 25)
+wine_k5 <- kmeans(x = wine_df, centers = 5, iter.max = 50, nstart = 25)
+```
+
+Let's visualize the cluster results in the PC space with the first two PCs. We will use `cowplot` to arrange multiple ggplot2 objects together. `cowplot` provides a lot of useful functionality to combine `ggplot2` objects together. It can be quite useful for compiling figures for reports, papers, and presentations. Please see the `cowplot` [website](https://wilkelab.org/cowplot/index.html) to learn more.  
+
+
+```{r, load_cowplot_pkg}
+library(cowplot)
+```
+
+
+Assign the ggplot figures to objects.  
+
+```{r, make_kmeans_plots_obj}
+p2 <- fviz_cluster(wine_k2, geom = "point", data = wine_df) + ggtitle("K = 2") +
+  ggthemes::scale_color_colorblind() + ggthemes::scale_fill_colorblind() +
+  theme_bw() + theme(legend.position = "none")
+p3 <- fviz_cluster(wine_k3, geom = "point", data = wine_df) + ggtitle("K = 3") +
+  ggthemes::scale_color_colorblind() + ggthemes::scale_fill_colorblind() +
+  theme_bw() + theme(legend.position = "none")
+p4 <- fviz_cluster(wine_k4, geom = "point", data = wine_df) + ggtitle("K = 4") +
+  ggthemes::scale_color_colorblind() + ggthemes::scale_fill_colorblind() +
+  theme_bw() + theme(legend.position = "none")
+p5 <- fviz_cluster(wine_k5, geom = "point", data = wine_df) + ggtitle("K = 5") +
+  ggthemes::scale_color_colorblind() + ggthemes::scale_fill_colorblind() +
+  theme_bw() + theme(legend.position = "none")
+
+prow <- plot_grid(p2, p3, p4, p5, align='vh', nrow=2)
+```
+
+
+Arrange the ggplot2 objects in a grid with a common legend.  
+
+```{r, viz_all_cowplot_kmeans}
+legend_common <- get_legend(p5 + theme(legend.position = "right"))
+
+plot_grid(prow, legend_common, rel_widths = c(1,.1))
+```
+
+What's the optimal number of clusters to use? A simple approach is the "knee bend" heuristic which plots the total within sum of squares versus the number of clusters.  
+
+```{r, viz_ncblust_knee}
+set.seed(2130)
+fviz_nbclust(x = wine_df, FUNcluster = kmeans, method = 'wss')
+```
+
+### streamlined PCA
+
+`factoextra` also helps us with understanding the PCA results. We could look at the base `R` PCA summary:  
+
+```{r, check_pca_summary_base}
+wine_pca %>% summary()
+```
+
+However, I prefer `factoextra`'s version:  
+
+```{r, check_pca_summary_facto}
+factoextra::get_eigenvalue( wine_pca )
+```
+
+A scree plot is a specialized line with point (scatter plot). `factoextra` includes a bar chart as well.  
+
+```{r, viz_wine_screeplot}
+factoextra::fviz_screeplot(wine_pca, addlabels = TRUE)
+```
+
+Can also visualize the cumulative or total variance explained with respect to the PC. The code chunk below uses facets to denote the scree plot from the cumulative variance explained.  
+
+```{r, viz_wine_totalvar}
+factoextra::get_eigenvalue( wine_pca ) %>% 
+  select(ends_with("percent")) %>% 
+  tibble::rownames_to_column() %>% 
+  tibble::as_tibble() %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(rowname, "\\d+"))) %>% 
+  pivot_longer(!c("rowname", "pc_id")) %>% 
+  ggplot(mapping = aes(x = pc_id, y = value)) +
+  geom_line(mapping = aes(group = name),
+            size = 1.1) +
+  geom_point(size = 4.5) +
+  facet_wrap(~name, scales = "free_y", ncol = 1) +
+  theme_bw()
+```
+
+I like to include common thresholds usch as 50%, 80% and 95% total variance explained.  
+
+```{r, viz_wine_totalvars_b}
+factoextra::get_eigenvalue( wine_pca ) %>% 
+  select(ends_with("percent")) %>% 
+  tibble::rownames_to_column() %>% 
+  tibble::as_tibble() %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(rowname, "\\d+"))) %>% 
+  pivot_longer(!c("rowname", "pc_id")) %>% 
+  ggplot(mapping = aes(x = pc_id, y = value)) +
+  geom_line(mapping = aes(group = name),
+            size = 1.1) +
+  geom_point(size = 4.5) +
+  geom_hline(data = tibble::tibble(threshold_value = c(50, 80, 95)) %>% 
+               mutate(name = "cumulative.variance.percent"),
+             mapping = aes(yintercept = threshold_value),
+             color = 'red', linetype = 'dashed', size = 1.) +
+  facet_wrap(~name, scales = "free_y", ncol = 1) +
+  theme_bw()
+```
+
+I particularly like to use `factoextra`'s visualization tools to help understand which variables contribute to the PCs. The figure below is a specialized scatter plot which draws an arrow to show the magnitude and direction of the original variables on the PC space.  
+
+```{r, viz_wine_pca_contri_arrows}
+factoextra::fviz_pca_var(wine_pca, col.var = 'black')
+```
+
+Can color the arrows based on the percent contribution (the squared loadings).  
+
+```{r, viz_wine_pca_contrib_arrows_2}
+factoextra::fviz_pca_var(wine_pca, col.var = 'contrib')
+```
+
+Can be useful to use a divergent color scale.  
+
+```{r, viz_wine_pca_contrib_arrows_3}
+factoextra::fviz_pca_var(wine_pca, col.var = 'contrib',
+                         gradient.cols = c("darkorange", "grey", "navyblue"))
+```
+
+
+And can try to move names around if the variable names overlap.  
+
+```{r, viz_wine_pca_contrib_arrows_4}
+factoextra::fviz_pca_var(wine_pca, col.var = 'contrib',
+                         gradient.cols = c("darkorange", "grey", "navyblue"),
+                         repel = TRUE)
+```
+
+The `axes` argument let's us change the PCs we are interested in.  
+
+```{r, viz_wine_pca_contrib_arrows_5}
+factoextra::fviz_pca_var(wine_pca, col.var = 'contrib',
+                         axes = c(2, 4),
+                         gradient.cols = c("darkorange", "grey", "navyblue"),
+                         repel = TRUE)
+```
+
+Can combine the vectors with the scatter plot of the observations to create the **biplot**.  
+
+```{r, viz_wine_biplot}
+factoextra::fviz_pca_biplot( wine_pca, repel = TRUE)
+```
+
+However, I particularly like to focus on contributions with simpler figures. For example, the percent contribution of each variable to a single PC can be shown as a bar chart. Let's look at the contribution to the first PC. The dashed red horizontal line is the "uniform contribution" threshold. If all variables equally contributed to the PC, the bars would all be at the height of the red dashed line. Variables with contribution heights much lower than the red dashed line correspond to variables that **do not** contribute to the PC!  
+
+```{r, viz_contrib_bar_1}
+factoextra::fviz_contrib( wine_pca, choice='var', axes=1 )
+```
+
+Can look at other PCs with the `axes` argument again. The variable contributions to PC-2 are shown below.  
+
+```{r, viz_contrib_bar_2}
+factoextra::fviz_contrib( wine_pca, choice='var', axes=2 )
+```
+
+I like to compile all the contributions into a dataframe, and then visualize the percent contribution as a heat map.  
+
+```{r, viz_contrib_heatmap}
+(factoextra::get_pca(wine_pca))$contrib %>% as.data.frame() %>% 
+  tibble::rownames_to_column() %>% 
+  tibble::as_tibble() %>% 
+  pivot_longer(!c("rowname")) %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(name, "\\d+"))) %>% 
+  ggplot(mapping = aes(x = pc_id, y = rowname)) +
+  geom_tile(mapping = aes(fill = value,
+                          group = interaction(pc_id, rowname)),
+            color = 'black') +
+  scale_fill_gradient2("Variable contribution percent",
+                       low = 'black', mid = 'white', high = 'navyblue',
+                       midpoint = 100 * (1 / length(wine_pca$center))) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+However, I usually like to use a binary discrete color scale. I am mostly interested in if the variable is above the uniform threshold or not.  
+
+```{r, viz_contrib_heatmap_2}
+(factoextra::get_pca(wine_pca))$contrib %>% as.data.frame() %>% 
+  tibble::rownames_to_column() %>% 
+  tibble::as_tibble() %>% 
+  pivot_longer(!c("rowname")) %>% 
+  mutate(pc_id = as.numeric(stringr::str_extract(name, "\\d+"))) %>% 
+  ggplot(mapping = aes(x = pc_id, y = rowname)) +
+  geom_tile(mapping = aes(fill = value > 100 * (1 / length(wine_pca$center)),
+                          group = interaction(pc_id, rowname)),
+            color = 'black') +
+  scale_fill_manual("Variable actively contributes to PC?",
+                    values = c("TRUE" = "darkred",
+                               "FALSE" = "grey70")) +
+  theme_bw() +
+  theme(legend.position = "top")
+```
+
+### Hierarchical clustering
+
+Lastly, let's perform hierarchical clustering. The first step is to decide the distance metric to use. I usually work with the euclidean distance.  
+
+```{r, viz_wine_distance}
+factoextra::fviz_dist( dist(wine_df, method = "euclidean") )
+```
+
+Use `hclust()` to perform hierarchical clustering. We must specify the **linkage** function with the `method` argument. I prefer the Ward method.  
+
+```{r, run_hclust_ward}
+wine_ward <- hclust(d = dist(wine_df, method = 'euclidean'), method = 'ward.D2')
+```
+
+
+Visualize the hierarchical cluster results in a dendrogram.  
+
+```{r, viz_wine_dendrogram}
+plot(wine_ward, labels = FALSE)
+```
+
+Can cut the tree into clusters with the `cutree()` function.  
+
+```{r, check_cut_tree_ward}
+cutree(wine_ward, k = 3) %>% head()
+```
+
+Let's compare the hierarchical cluster results to the `Cultivar` variable.  
+
+```{r, check_cultivar_compare}
+wine %>% 
+  mutate(cluster_id = cutree(wine_ward, k = 3)) %>% 
+  count(Cultivar, cluster_id) %>% 
+  ggplot(mapping = aes(x = as.factor(Cultivar),
+                       y = as.factor(cluster_id))) +
+  geom_tile(mapping = aes(fill = n),
+            color = "black") +
+  geom_text(mapping = aes(label = n),
+            size = 7,
+            color = "white") +
+  theme_bw()
+```
+
+
+
